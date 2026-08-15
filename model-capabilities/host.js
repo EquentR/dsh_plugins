@@ -45,8 +45,19 @@ return {
       ...(m.contextWindow !== undefined ? { contextWindow: m.contextWindow } : {}),
       ...(m.maxTokens !== undefined ? { maxTokens: m.maxTokens } : {}),
     })
-    // 动态插件运行在独立 vm realm,字面量对象的原型不是宿主 Object.prototype,
-    // 会被 settings 的 isPlainObject 校验拒绝。用 Object.create(null) 构造 op。
+    // 动态插件运行在独立 vm realm,字面量/展开对象的原型不是宿主 Object.prototype,
+    // 会被 settings 的 isPlainObject 校验拒绝。递归转成 proto === null 的 plain 树。
+    const toPlain = (value) => {
+      if (value === null || typeof value !== 'object') return value
+      if (Array.isArray(value)) return value.map(toPlain)
+      const out = Object.create(null)
+      for (const [k, v] of Object.entries(value)) {
+        if (v !== undefined) out[k] = toPlain(v)
+      }
+      return out
+    }
+
+    // settings path op:proto === null 对象,通过宿主 isPlainObject 校验。
     const makeOp = (op, path, value) => {
       const entry = Object.create(null)
       entry.op = op
@@ -99,7 +110,7 @@ return {
         if (edit.input !== undefined) merged.input = edit.input
         next[at] = merged
       }
-      const ops = [makeOp('set', ['providers', provider, 'models'], next)]
+      const ops = [makeOp('set', ['providers', provider, 'models'], toPlain(next))]
       const defaultEffort = args?.defaultEffort
       if (defaultEffort !== undefined) {
         if (defaultEffort === null) ops.push(makeOp('unset', ['providers', provider, 'reasoning']))

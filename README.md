@@ -8,12 +8,13 @@
 
 | 插件 | 状态 | 作用 |
 | --- | --- | --- |
-| [`model-capabilities`](./model-capabilities) | 可试用 | 为已配置的第三方模型补充推理等级和图片输入能力配置 |
+| [`model-capabilities`](./model-capabilities) | 可试用 | 设置模型显示名称，并为第三方模型补充推理等级和图片输入能力配置 |
 
 ## `model-capabilities`
 
 这个插件在 DSH 设置面板中增加“模型能力”页面：
 
+- 为每个模型设置独立于模型 ID 的显示名称；
 - 为已配置的 `llm-pi-ai` provider 展示模型列表；
 - 按模型启用/关闭推理能力，并选择 `off`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max` 等等级；
 - 按模型配置图片输入支持；

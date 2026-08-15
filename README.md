@@ -2,7 +2,7 @@
 
 为 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 提供的第三方插件集合。
 
-这里会持续收集可独立安装、可组合使用的 DSH 插件，目标是补充 Harness 的模型、工作流和开发体验。每个插件尽量保持边界清晰，优先以源码和文档交付，避免修改 Harness 核心代码。
+这里会持续更新可独立安装、可组合使用的 DSH 插件，目标是补充 Harness 的模型、工作流和开发体验。每个插件尽量保持边界清晰，优先以源码和文档交付，避免修改 Harness 核心代码。
 
 ## 当前插件
 

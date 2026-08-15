@@ -1,0 +1,9 @@
+{
+  "name": "@dsh-plugins/model-capabilities",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DSH plugin: per-model reasoning levels and image-input configuration for third-party providers (settings.section page + llm-pi-ai settings writes)",
+  "type": "module",
+  "main": "lib/index.js",
+  "license": "MIT"
+}

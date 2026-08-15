@@ -36,13 +36,14 @@ return {
       }
       return models
     }
+    // RPC 返回必须是纯 JSON:缺省字段用条件展开跳过,绝不带 undefined 值。
     const normalizeModel = (m) => ({
       id: m.id,
       name: m.name,
-      input: Array.isArray(m.input) ? m.input : undefined,
-      reasoningEfforts: m.reasoningEfforts === undefined ? undefined : m.reasoningEfforts,
-      contextWindow: m.contextWindow,
-      maxTokens: m.maxTokens,
+      ...(Array.isArray(m.input) ? { input: [...m.input] } : {}),
+      ...(m.reasoningEfforts !== undefined ? { reasoningEfforts: m.reasoningEfforts } : {}),
+      ...(m.contextWindow !== undefined ? { contextWindow: m.contextWindow } : {}),
+      ...(m.maxTokens !== undefined ? { maxTokens: m.maxTokens } : {}),
     })
 
     harness.handle('model-caps:list', async () => {

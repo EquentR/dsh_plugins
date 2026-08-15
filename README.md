@@ -19,7 +19,7 @@
 - 按模型配置图片输入支持；
 - 配置 provider 默认推理等级；
 - 通过 Host RPC 读取和持久化 `settings.yaml`，只修改已配置的 provider；
-- 识别 `llm-deepseek` 官方适配器，但保留其“提供商级推理设置、暂不支持图片输入”的限制。
+- 识别 `llm-deepseek` 配置命名空间中的 `deepseek-official` 官方 route，但保留其“提供商级推理设置、暂不支持图片输入”的限制。
 
 详细行为、安装方式和限制见 [`model-capabilities/README.md`](./model-capabilities/README.md)。
 

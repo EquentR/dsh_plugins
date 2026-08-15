@@ -25,10 +25,12 @@
 
 - 每个 pi-ai 提供商一张卡片,列出其全部模型;
 - 每个模型一行:
+  - **显示名称** 输入框:独立于模型 id,留空时回退到 id/默认名称;
   - **支持推理** 开关;开启后勾选该模型支持的推理等级(off / minimal / low / medium / high / xhigh / max);
   - **支持图片** 开关(控制 `input` 是否含 `image`);
+- DeepSeek 官方适配器卡片:显示官方模型并支持编辑显示名称;推理等级为提供商级统一设置(off / high / max);
 - 提供商级 **默认推理等级** 下拉(写入 `providers.<route>.reasoning`,模型选择器把它作为该模型的默认等级);
-- 「保存全部」把能力写入 `settings.yaml` 的 `llm-pi-ai` 命名空间(路径化 `mutate`,保留未编辑字段),pi-ai 适配器随即重解析,模型选择器立即生效。
+- 「保存全部」把能力与显示名称写入 `settings.yaml` 的 `llm-pi-ai` / `llm-deepseek` 命名空间(路径化 `mutate`,保留未编辑字段),pi-ai 适配器随即重解析,模型选择器立即生效。
 
 ### 架构
 
@@ -48,8 +50,8 @@ Host 与 Client 通过以下包私有 RPC 通信，修改任一侧时必须同�
 
 | RPC | 作用 | 写入范围 |
 | --- | --- | --- |
-| `model-caps:list` | 读取已配置 provider 和模型能力 | 只读 |
-| `model-caps:save` | 合并模型能力并持久化 | 已配置的 `llm-pi-ai` route，或已配置的官方 `llm-deepseek` 命名空间 |
+| `model-caps:list` | 读取已配置 provider、模型显示名称和模型能力 | 只读 |
+| `model-caps:save` | 合并模型显示名称与能力并持久化 | 已配置的 `llm-pi-ai` route，或已配置的官方 `llm-deepseek` 命名空间 |
 
 ## 安装与使用
 
@@ -75,7 +77,7 @@ node -e "const fs=require('fs'); for (const f of ['model-capabilities/host.js','
 
 ## 作用范围与限制
 
-- 仅对 **pi-ai 适配器**(OpenAI-compatible 自定义提供商及其模型)生效;DeepSeek 官方适配器(`deepseek-official`)的模型 schema 没有这两个字段,其推理等级是提供商级统一配置,本插件不适用。
+- 仅对 **pi-ai 适配器**(OpenAI-compatible 自定义提供商及其模型)提供每模型推理等级/图片能力;DeepSeek 官方适配器(`deepseek-official`)的推理等级是提供商级统一配置,只编辑显示名称与官方默认推理等级。
 - 推理等级的 wire 值默认取等级名(`off` 为省略);若你的网关需要不同的 wire 拼写,直接在 `settings.yaml` 的 `reasoningEfforts` 里写 `等级: 拼写` 即可,本页面会原样保留并展示。
 - 模型目录 wire schema 目前不把 `inputModalities` 传给模型选择器 UI,因此选择器上暂无图片标记;但图片能力校验(选择模型、流式调用)会按配置生效。
 

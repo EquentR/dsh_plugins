@@ -17,10 +17,10 @@ DSH Plugins 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek
 
 ## 当前上下文
 
-当前仓库只有 `model-capabilities` 插件。它通过两个包私有 RPC 读取和保存模型能力：
+当前仓库只有 `model-capabilities` 插件。它通过两个包私有 RPC 读取和保存模型信息：
 
 - `model-caps:list` 读取已配置的 `llm-pi-ai` provider，并在配置存在时展示 `llm-deepseek` 官方适配器；
-- `model-caps:save` 合并编辑后的模型字段，并通过 `settings.mutate` 持久化；
+- `model-caps:save` 合并编辑后的模型显示名称、模型能力，并通过 `settings.mutate` 持久化；
 - 未配置的 provider、未知 route 和未声明的模型不会被当作可编辑目标。
 
 当新增插件或改变这些术语的含义时，先更新本文件和相关 ADR，再更新 README 或 issue 文案。

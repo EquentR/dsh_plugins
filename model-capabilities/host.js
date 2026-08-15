@@ -66,11 +66,28 @@ return {
         return (await llm.listModels('deepseek-official')).map((model) => ({
           id: model.id,
           name: model.name,
+          ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
+          ...(model.maxTokens !== undefined ? { maxTokens: model.maxTokens } : {}),
           input: ['text'],
         }))
       } catch (error) {
         return []
       }
+    }
+    // 官方适配器只接受基础模型字段;保存模型显示名时绝不写入 input/reasoningEfforts。
+    const serializeOfficialModel = (model) => ({
+      id: model.id,
+      ...(typeof model.name === 'string' && model.name.length > 0 ? { name: model.name } : {}),
+      ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
+      ...(model.maxTokens !== undefined ? { maxTokens: model.maxTokens } : {}),
+      ...(model.description !== undefined ? { description: model.description } : {}),
+    })
+    // 应用一条模型编辑的显示名称;空白表示回退到默认/id。
+    const applyDisplayName = (target, edit) => {
+      if (edit.name === undefined) return
+      const name = typeof edit.name === 'string' ? edit.name.trim() : ''
+      if (name.length > 0) target.name = name
+      else Reflect.deleteProperty(target, 'name')
     }
     // RPC 返回必须是纯 JSON:缺省字段用条件展开跳过,绝不带 undefined 值。
     const normalizeModel = (model) => ({
@@ -133,7 +150,7 @@ return {
       if (typeof provider !== 'string' || !Array.isArray(edits)) {
         return { ok: false, error: 'invalid request: provider and models[] required' }
       }
-      // DeepSeek 官方:推理等级是提供商级统一设置,写入 llm-deepseek 命名空间。
+      // DeepSeek 官方:推理等级是提供商级统一设置,模型显示名可单独编辑。
       if (provider === 'deepseek-official') {
         const profile = readSection('llm-deepseek')
         if (profile === undefined) return { ok: false, error: '官方供应商未配置,跳过' }
@@ -143,6 +160,19 @@ return {
           ops.push(makeOp('unset', ['reasoningEffort']))
         } else {
           ops.push(makeOp('set', ['reasoningEffort'], defaultEffort))
+        }
+        const base = await loadOfficialModels(profile)
+        const next = base.map((model) => {
+          const edit = edits.find((entry) => entry?.id === model.id)
+          if (edit === undefined) return { ...model }
+          const merged = { ...model }
+          applyDisplayName(merged, edit)
+          return merged
+        })
+        const serialized = next.map(serializeOfficialModel)
+        const serializedBase = base.map(serializeOfficialModel)
+        if (JSON.stringify(serialized) !== JSON.stringify(serializedBase)) {
+          ops.push(makeOp('set', ['models'], toPlain(serialized)))
         }
         try {
           await settings.mutate('llm-deepseek', ops)
@@ -162,6 +192,7 @@ return {
         const at = next.findIndex((model) => model.id === edit.id)
         if (at < 0) continue
         const merged = { ...next[at] }
+        applyDisplayName(merged, edit)
         if (edit.reasoningEfforts !== undefined) merged.reasoningEfforts = edit.reasoningEfforts
         if (edit.input !== undefined) merged.input = edit.input
         next[at] = merged

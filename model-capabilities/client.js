@@ -110,6 +110,7 @@ function ModelCapabilitiesPage() {
       defaultEffort: entry.defaultEffort,
       models: entry.models.map((model) => ({
         id: model.id,
+        name: model.name,
         reasoningEfforts: model.reasoningEnabled ? model.reasoningEfforts : false,
         input: model.input,
       })),
@@ -142,11 +143,22 @@ function ModelCapabilitiesPage() {
       )
     ))
   }
+  const renderNameField = (provider, model) => {
+    return React.createElement('label', { className: 'mcap-name-field' },
+      '显示名称 ',
+      React.createElement('input', {
+        className: 'mcap-name-input',
+        value: model.name || '',
+        placeholder: model.id,
+        onChange: (event) => setModel(provider.provider, model.id, { name: event.target.value }),
+      })
+    )
+  }
   const renderModel = (provider, model) => {
     if (provider.kind === 'deepseek') {
       return React.createElement('div', { key: model.id, className: 'mcap-model' },
         React.createElement('div', { className: 'mcap-model-head' },
-          React.createElement('span', { className: 'mcap-model-name' }, model.name || model.id),
+          renderNameField(provider, model),
           React.createElement('code', { className: 'mcap-model-id' }, model.id),
           React.createElement('span', { className: 'mcap-disabled' }, '官方适配器:所有模型共用提供商级推理设置,不支持图片输入')
         )
@@ -154,7 +166,7 @@ function ModelCapabilitiesPage() {
     }
     return React.createElement('div', { key: model.id, className: 'mcap-model' },
       React.createElement('div', { className: 'mcap-model-head' },
-        React.createElement('span', { className: 'mcap-model-name' }, model.name || model.id),
+        renderNameField(provider, model),
         React.createElement('code', { className: 'mcap-model-id' }, model.id),
         React.createElement('label', { className: 'mcap-switch' },
           React.createElement('input', { type: 'checkbox', checked: model.reasoningEnabled, onChange: (event) => toggleReasoning(provider.provider, model.id, event.target.checked) }),
@@ -228,6 +240,8 @@ return {
 .mcap-model-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .mcap-model-name { font-size: 13px; font-weight: 600; }
 .mcap-model-id { font-size: 11px; opacity: .6; }
+.mcap-name-field { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+.mcap-name-input { width: 180px; min-width: 120px; font-size: 12px; padding: 3px 6px; border-radius: 6px; border: 1px solid rgba(128,128,128,.4); background: transparent; }
 .mcap-switch { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .mcap-disabled { font-size: 11px; opacity: .6; }
 .mcap-levels { display: flex; flex-wrap: wrap; gap: 6px; }

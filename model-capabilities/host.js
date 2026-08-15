@@ -45,6 +45,15 @@ return {
       ...(m.contextWindow !== undefined ? { contextWindow: m.contextWindow } : {}),
       ...(m.maxTokens !== undefined ? { maxTokens: m.maxTokens } : {}),
     })
+    // 动态插件运行在独立 vm realm,字面量对象的原型不是宿主 Object.prototype,
+    // 会被 settings 的 isPlainObject 校验拒绝。用 Object.create(null) 构造 op。
+    const makeOp = (op, path, value) => {
+      const entry = Object.create(null)
+      entry.op = op
+      entry.path = path
+      if (value !== undefined) entry.value = value
+      return entry
+    }
 
     harness.handle('model-caps:list', async () => {
       const llm = ctx.get('llm')
@@ -90,11 +99,11 @@ return {
         if (edit.input !== undefined) merged.input = edit.input
         next[at] = merged
       }
-      const ops = [{ op: 'set', path: ['providers', provider, 'models'], value: next }]
+      const ops = [makeOp('set', ['providers', provider, 'models'], next)]
       const defaultEffort = args?.defaultEffort
       if (defaultEffort !== undefined) {
-        if (defaultEffort === null) ops.push({ op: 'unset', path: ['providers', provider, 'reasoning'] })
-        else ops.push({ op: 'set', path: ['providers', provider, 'reasoning'], value: defaultEffort })
+        if (defaultEffort === null) ops.push(makeOp('unset', ['providers', provider, 'reasoning']))
+        else ops.push(makeOp('set', ['providers', provider, 'reasoning'], defaultEffort))
       }
       try {
         await settings.mutate('llm-pi-ai', ops)

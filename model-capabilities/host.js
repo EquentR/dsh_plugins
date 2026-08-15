@@ -65,6 +65,13 @@ return {
       if (value !== undefined) entry.value = value
       return entry
     }
+    // 已配置的 pi-ai provider route 集合(settings.yaml 的 providers keys)。
+    // 注意:pi-ai 内置目录含大量未配置候选,绝不能把它们当可编辑目标。
+    const configuredProviders = (section) => {
+      const obj = section?.providers
+      if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return []
+      return Object.keys(obj)
+    }
 
     harness.handle('model-caps:list', async () => {
       const llm = ctx.get('llm')
@@ -73,15 +80,14 @@ return {
         return { ok: false, error: 'llm/settings 服务不可用' }
       }
       const section = readSection()
-      const providers = llm.listConfigurableProviders()
+      const routes = configuredProviders(section)
       const out = []
-      for (const p of providers) {
-        const profile = section?.providers?.[p.provider]
-        const models = await loadModels(p.provider, profile)
+      for (const provider of routes) {
+        const profile = section?.providers?.[provider]
+        const models = await loadModels(provider, profile)
         out.push({
-          provider: p.provider,
-          displayName: typeof profile?.displayName === 'string' ? profile.displayName : p.displayName,
-          declared: p.declared === true,
+          provider,
+          displayName: typeof profile?.displayName === 'string' ? profile.displayName : provider,
           defaultEffort: typeof profile?.reasoning === 'string' ? profile.reasoning : null,
           models: models.map(normalizeModel),
         })
@@ -99,6 +105,10 @@ return {
       }
       const section = readSection()
       const profile = section?.providers?.[provider]
+      if (profile === undefined) {
+        // 只允许保存已配置的 route,绝不为未配置候选/未知 route 新建 profile。
+        return { ok: false, error: `provider "${provider}" 未配置,跳过` }
+      }
       const base = await loadModels(provider, profile)
       const next = base.map((m) => ({ ...m }))
       for (const edit of edits) {

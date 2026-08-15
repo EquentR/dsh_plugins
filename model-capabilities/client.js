@@ -86,7 +86,12 @@ function ModelCapabilitiesPage() {
   }
 
   const save = () => {
-    for (const p of Object.values(draft)) {
+    const providers = Object.entries(draft)
+    if (providers.length === 0) {
+      setState((s) => ({ ...s, notice: '没有已配置的提供商,无需保存' }))
+      return
+    }
+    for (const [, p] of providers) {
       for (const m of p.models) {
         if (m.reasoningEnabled) {
           const hasThinking = Object.keys(m.reasoningEfforts).some((l) => l !== 'off')
@@ -98,7 +103,7 @@ function ModelCapabilitiesPage() {
       }
     }
     setBusy(true)
-    const calls = Object.entries(draft).map(([provider, d]) =>
+    const calls = providers.map(([provider, d]) =>
       host.call('model-caps:save', {
         provider,
         defaultEffort: d.defaultEffort,
@@ -128,13 +133,13 @@ function ModelCapabilitiesPage() {
     React.createElement('div', { className: 'mcap-head' },
       React.createElement('h3', { className: 'mcap-title' }, '模型能力'),
       React.createElement('p', { className: 'mcap-sub' },
-        '为每个第三方模型配置支持的推理等级与图片输入。保存后模型选择器会按配置显示推理等级下拉,并在附加图片时校验支持。'),
+        '为每个已配置的第三方模型配置支持的推理等级与图片输入。保存后模型选择器会按配置显示推理等级下拉,并在附加图片时校验支持。'),
       React.createElement('button', { className: 'mcap-btn mcap-btn-primary', onClick: save, disabled: busy },
         busy ? '保存中…' : '保存全部')
     ),
     state.notice ? React.createElement('p', { className: 'mcap-notice' }, state.notice) : null,
     empty
-      ? React.createElement('p', { className: 'mcap-note' }, '暂无已配置的提供商/模型。请先在「模型」设置页添加提供商与模型。')
+      ? React.createElement('p', { className: 'mcap-note' }, '暂无已配置的提供商。请先在「模型」设置页添加提供商与模型,再回来配置其能力。')
       : Object.entries(draft).map(([provider, d]) =>
           React.createElement('div', { key: provider, className: 'mcap-card' },
             React.createElement('div', { className: 'mcap-card-head' },

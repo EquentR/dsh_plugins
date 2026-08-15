@@ -31,8 +31,8 @@
 ### 架构
 
 - **Host 半**:两个包私有 RPC(`harness.handle`)
-  - `model-caps:list` — 读取所有 pi-ai provider 的模型及当前能力;
-  - `model-caps:save` — 合并编辑并 `settings.mutate('llm-pi-ai', ops)` 持久化。
+  - `model-caps:list` — 只读取**已配置**的 pi-ai provider(settings.yaml `providers` keys)的模型及当前能力;**排除** pi-ai 内置目录里那些未配置的候选供应商;
+  - `model-caps:save` — 仅对已配置 route 合并编辑并经 `settings.mutate('llm-pi-ai', ops)` 持久化,从不新建/误写未配置或未知 route。
 - **Client 半**:注册 `settings.section` 新页面,纯 React(无 JSX)。
 
 ## 文件

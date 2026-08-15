@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: DeepSeek Harness 上游仓库
+    url: https://github.com/deepseek-ai/deepseek-harness
+    about: 如果问题属于 Harness 核心行为，请先确认是否应提交到上游仓库。

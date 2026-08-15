@@ -51,7 +51,7 @@ const modelFields = {
 ## 5. 本插件的实现
 
 - Host 半:`harness.handle` 两个 RPC:
-  - `model-caps:list` — `settings.get('llm-pi-ai')` + `llm.listConfigurableProviders()` + `llm.listModels()` 组装纯 JSON;
+  - `model-caps:list` — `settings.get('llm-pi-ai')` 的已配置 provider keys + `llm.listModels()`(缺省时)组装纯 JSON;
   - `model-caps:save` — 基线(解析值 models,缺省时 listModels,合并 modelOverrides)上应用编辑,`settings.mutate('llm-pi-ai', [{op:'set', path:['providers',<route>,'models'], value}])`,附带 provider 级 `reasoning`(默认等级)set/unset。
 - Client 半:注册 `settings.section` 新页面(id=`model-capabilities`,order=11,label「模型能力」),React 无 JSX,`host.call` 读写。
 - 保存后 pi-ai 适配器自动重解析 → 模型选择器立即显示推理等级下拉。

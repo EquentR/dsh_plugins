@@ -1,5 +1,7 @@
 # Model Capabilities — 模型能力配置插件
 
+这是 [`dsh_plugins`](../README.md) 中的第一个插件，面向 DeepSeek Harness 的第三方模型配置场景。
+
 为 DeepSeek Harness 的第三方(自定义)模型补上**推理等级**与**图片支持**的配置界面。
 
 ## 背景:harness 的现状
@@ -42,6 +44,13 @@
 - `package.json` — 若作为持久 npm 插件安装时使用
 - 本 README
 
+Host 与 Client 通过以下包私有 RPC 通信，修改任一侧时必须同步检查另一侧：
+
+| RPC | 作用 | 写入范围 |
+| --- | --- | --- |
+| `model-caps:list` | 读取已配置 provider 和模型能力 | 只读 |
+| `model-caps:save` | 合并模型能力并持久化 | 已配置的 `llm-pi-ai` route，或已配置的官方 `llm-deepseek` 命名空间 |
+
 ## 安装与使用
 
 ### 方式一:动态插件(快速试用,进程内有效)
@@ -56,8 +65,20 @@
 
 > 注意:持久安装涉及 DSH 的 web 客户端模块扫描与构建,若你的部署通过 pnpm workspace 管理 profile 依赖,推荐走 `dsh plugin --profile web add`。
 
+### 本地验证
+
+源码是传给 `cordis_define` 的 JavaScript 函数体，不是可直接执行的 Node 程序。可以从仓库根目录用下面的命令检查函数体语法和包元数据：
+
+```powershell
+node -e "const fs=require('fs'); for (const f of ['model-capabilities/host.js','model-capabilities/client.js']) new Function(fs.readFileSync(f,'utf8')); JSON.parse(fs.readFileSync('model-capabilities/package.json','utf8')); console.log('validation passed')"
+```
+
 ## 作用范围与限制
 
 - 仅对 **pi-ai 适配器**(OpenAI-compatible 自定义提供商及其模型)生效;DeepSeek 官方适配器(`deepseek-official`)的模型 schema 没有这两个字段,其推理等级是提供商级统一配置,本插件不适用。
 - 推理等级的 wire 值默认取等级名(`off` 为省略);若你的网关需要不同的 wire 拼写,直接在 `settings.yaml` 的 `reasoningEfforts` 里写 `等级: 拼写` 即可,本页面会原样保留并展示。
 - 模型目录 wire schema 目前不把 `inputModalities` 传给模型选择器 UI,因此选择器上暂无图片标记;但图片能力校验(选择模型、流式调用)会按配置生效。
+
+## 兼容性说明
+
+插件依赖 Harness 提供的 `harness.handle`、`settings`、`llm`、`slots`、`styles` 和 `host.call` 扩展接口。上游接口或设置 schema 发生变化时，插件可能需要同步调整；请在 issue 中附上 DSH/Harness 版本、安装方式和最小配置。

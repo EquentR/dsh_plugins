@@ -1,0 +1,60 @@
+{
+  "name": "@dsh-plugins/git-graph",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DSH plugin: a Git commit graph, working-tree changes and file diffs in the Web right sidebar.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ],
+      "external": [
+        "react",
+        "react-dom",
+        "@deepseek-ai/dsh-client-ui-primitives"
+      ]
+    }
+  },
+  "dependencies": {
+    "markdown-it": "^15.0.1",
+    "monaco-editor": "^0.56.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.5 <5",
+    "@deepseek-ai/dsh": ">=0.2.1-rc.2 <0.2.2"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh": {
+      "optional": true
+    }
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "locale/*.json",
+    "icon.svg"
+  ]
+}

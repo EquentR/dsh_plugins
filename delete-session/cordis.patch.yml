@@ -1,0 +1,12 @@
+# Independent bundle patch for @dsh-plugins/delete-session.
+# This package owns exactly one Loader row; it never pulls in the other plugins
+# in this repository.
+- insert:
+    - id: dsh-delete-session
+      name: '@dsh-plugins/delete-session'
+      inject:
+        - webServer
+        - sessions
+        - agents
+        - sessionPersistence
+      config: {}

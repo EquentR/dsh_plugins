@@ -25,3 +25,7 @@ Thumbs.db
 *.jsonl
 .env
 .env.local
+# Local pnpm artifact written inside a plugin directory by this deployment's
+# pnpm policy (minimumReleaseAge exclusions). It describes the local install,
+# never the plugin, so it is not part of the repository.
+git-graph/pnpm-workspace.yaml

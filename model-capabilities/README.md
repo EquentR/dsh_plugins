@@ -1,5 +1,11 @@
 # Model Capabilities — 模型能力配置插件
 
+> **状态：已弃用（deprecated）**
+>
+> 新版本 DSH 已**内置**模型能力设置（思考/推理等级与多模态/图片输入），本插件所补的缺口已由上游填补。请优先使用自带设置界面；本目录仅作为历史实现与迁移参考保留，**不再维护，也不建议新装**。
+>
+> 弃用理由与替代方式见 [`docs/adr/0002-deprecate-and-split-plugins.md`](../docs/adr/0002-deprecate-and-split-plugins.md)。
+
 这是 [`dsh_plugins`](../README.md) 中的第一个插件，面向 DeepSeek Harness 的第三方模型配置场景。
 
 为 DeepSeek Harness 的第三方(自定义)模型补上**推理等级**与**图片支持**的配置界面。

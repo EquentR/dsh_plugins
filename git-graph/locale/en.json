@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Git Graph",
+    "description": "Adds a Git tab to the Web right sidebar: commit lane graph, uncommitted changes and per-file diffs of the repository containing the current directory."
+  }
+}

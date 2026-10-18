@@ -6,8 +6,10 @@
 
 ## 仓库结构
 
-- `model-capabilities/`：当前插件，包含 Host 源码、Client 源码、插件说明和包元数据。
-- `CONTEXT.md`：领域词汇、插件边界和当前上下文，探索相关代码前优先阅读。
+- `git-graph/`、`delete-session/`、`mentor/`：可用的持久包，各自独立安装。每个目录包含 Host 源码（`index.js`，`mentor` 另有 `lib/`）、Client 源码（`client.js`）、`cordis.patch.yml`、`package.json`、Locale 资源、图标和 README。
+- `model-capabilities/`：**已弃用**的动态函数体插件（`host.js` / `client.js`），仅作历史实现与迁移参考保留，不要再适配新功能。
+- `scripts/validate.mjs`：仓库校验脚本，覆盖上面两类形态。
+- `CONTEXT.md`：领域词汇、插件形态和当前上下文，探索相关代码前优先阅读。
 - `docs/adr/`：记录会影响多个插件或长期维护方式的架构决策。
 - `docs/agents/`：工程 skill 使用的 issue tracker、triage 和领域文档约定。
 - `.github/ISSUE_TEMPLATE/`：GitHub issue 的提问模板。
@@ -48,8 +50,12 @@ This is a single-context repository. Read `CONTEXT.md` and relevant files under 
 仓库目前没有统一构建系统。修改插件源码后执行：
 
 ```powershell
-node -e "const fs=require('fs'); for (const f of ['model-capabilities/host.js','model-capabilities/client.js']) new Function(fs.readFileSync(f,'utf8')); JSON.parse(fs.readFileSync('model-capabilities/package.json','utf8')); console.log('validation passed')"
+node scripts/validate.mjs
 ```
+
+该脚本覆盖两类插件形态：持久包检查清单、bundle patch 行名、Client 模块 id、ES 模块解析和 Locale
+元数据；动态函数体检查 `new Function(source)` 能编译且没有顶层 `import`/`export`。它不导入也不执行
+插件代码。
 
 同时做一次 `git diff --check`，并人工检查文档是否仍与源码一致。若引入测试或构建脚本，应把命令补充到根 README 和本文件。
 

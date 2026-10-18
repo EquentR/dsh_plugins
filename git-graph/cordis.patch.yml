@@ -1,0 +1,12 @@
+# Independent bundle patch for @dsh-plugins/git-graph.
+# This package owns exactly one Loader row; it never pulls in the other plugins
+# in this repository.
+- insert:
+    - id: dsh-git-graph
+      name: '@dsh-plugins/git-graph'
+      inject:
+        - webServer
+        - subprocess
+        - fs
+        - sandboxPolicy
+      config: {}

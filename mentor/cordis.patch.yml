@@ -1,0 +1,26 @@
+# Independent bundle patch for @dsh-plugins/mentor.
+# This package owns exactly one Loader row; it never pulls in the other plugins
+# in this repository. The row starts disabled: enable it here, or from
+# Settings > Mentor, once the provider/model route you want is configured.
+- insert:
+    - id: dsh-mentor
+      name: '@dsh-plugins/mentor'
+      inject:
+        - tools
+        - agents
+        - agentLoop
+        - commands
+        - connection
+        - sessions
+        - sessionPersistence
+        - sessionController
+        - settings
+        - systemPrompt
+      config:
+        enabled: false
+        provider: ''
+        model: ''
+        reasoningEffort: ''
+        maxInputBytes: 98304
+        requestTimeoutMs: 300000
+        globalConcurrency: 2

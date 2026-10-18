@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Mentor",
+    "description": "Registers a tool-less mentor consultation the main agent can call for an isolated second opinion, with a per-session Mentor tab and global settings."
+  }
+}

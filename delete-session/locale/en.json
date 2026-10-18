@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Delete Session",
+    "description": "Adds a confirmed permanent-delete action to the session header, each session row menu and a batch-selection mode, removing subagent transcripts together with their parent."
+  }
+}

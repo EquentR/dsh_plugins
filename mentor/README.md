@@ -30,6 +30,18 @@
 - 旧线程有失败 / 未决 / 未送达记录时，新调用自动封存并新建干净线程，不需要手工 reset；
 - `/mentor status` 查看路由、当前线程、usage 与待交付计数；`/mentor reset` 封存当前线程（同样排队）。
 
+### 与 Agent 预设的关系
+
+`mentor` 是 **Host 级插件**，工具按"主 Agent"逐个注册，**不由任何 Agent 预设声明**。所以
+标准模式、真 · 标准模式（true-standard）、cordis 等预设创建的主 Agent 都会拿到同一个
+`mentor` 工具；子 Agent 一律看不到。反过来，也不需要（也不应该）把 `@dsh-plugins/mentor`
+写进某个预设的 `plugins` 列表——那样会和 Host 行重复挂载、并破坏 `inject` 的服务边界。
+
+注册时机覆盖三种情形：插件加载时枚举现存 Agent、`agent/created` 时为新建 Agent 注册、
+以及每条输入被认领（`agent/inbox/claimed`）时做一次幂等自检。自检读的是该 Agent 自己视角下的
+工具表，因此即使注册被后续的插件重载或工具层重建丢掉，也会在下一轮输入前补回来，不需要手动
+重开设置页或重启。
+
 ## 界面
 
 - **会话标签**：在自带"对话 / 轨迹"旁增加会话级 `Mentor` 标签（顺序 30），显示最近 20 条已完成咨询、问题、可折叠证据、回复与交付状态；只读；
@@ -113,6 +125,21 @@ node scripts/validate.mjs
 
 尚未验证：真正启用后的咨询链路（需要模型额度），以及会话里的 `Mentor` 标签页。启用前请先在一份
 可以浪费额度的会话里试。
+
+### 已实测：开启后各预设都能拿到工具（2026-10-18，desktop profile，DSH 0.2.1-rc.2）
+
+`enabled: true`、路由 `istart/gpt-6.1-sol`、`reasoningEffort: max` 时，用一次只读探针逐 Agent 读取
+`tools.get('mentor', agent)` 与 `tools.schemas(agent)`：
+
+| 场景 | 结果 |
+| --- | --- |
+| 现存 6 个主 Agent（3 个 standard、3 个 true-standard） | 全部 `mentor: true` |
+| 新建 Agent（`meta.agentPreset: 'true-standard'`） | `mentor` 出现在它的工具表里 |
+| `set_plugin` 关闭 → 开启（等价于设置页保存后的重载） | 旧注册全部释放，6 个主 Agent 重新注册成功 |
+| `scripts/validate.mjs` | `validation passed` |
+
+排查过程中确认了两件事：预设不是原因（`standard` 会话在重启后同样会丢工具），以及"工具消失"来自
+插件实例重载后没有重新登记——这正是上面 `agent/inbox/claimed` 自检要兜住的情形。
 
 ### 安装后的人工检查
 

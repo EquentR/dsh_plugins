@@ -1438,6 +1438,18 @@ function isPrimaryAgent(agents, agent) {
   return agents.roots().some((root) => root === agent)
 }
 
+// Resolve the Mentor tool exactly as this Agent's own scope sees it, so a
+// registration that a tool-layer rebuild dropped reads as absent.
+function mentorToolVisible(agent) {
+  const tools = agent?.ctx?.tools
+  if (tools === undefined || typeof tools.get !== 'function') return false
+  try {
+    return tools.get(TOOL_NAME, agent) !== undefined
+  } catch {
+    return false
+  }
+}
+
 function installForPrimaryAgent(ctx, config, runtime, adapters, agent) {
   if (!config.enabled || !isPrimaryAgent(ctx.agents, agent) || runtime.rootDisposers.has(String(agent.id))) return
   const agentCtx = agent.ctx
@@ -1730,8 +1742,23 @@ export function installMentor(ctx, rawConfig, adapters) {
   if (config.enabled) {
     const attachAgent = (agent) => {
       try {
-        if (isPrimaryAgent(ctx.agents, agent)) installForPrimaryAgent(ctx, config, runtime, adapters, agent)
-        else hideFromNestedAgent(ctx, runtime, agent)
+        const primary = isPrimaryAgent(ctx.agents, agent)
+        if (primary) {
+          if (runtime.rootDisposers.has(String(agent?.id)) && mentorToolVisible(agent)) return
+          if (runtime.rootDisposers.has(String(agent?.id))) {
+            // The recorded registration no longer resolves for this Agent, so
+            // release the stale effect before registering the tool again.
+            try {
+              runtime.rootDisposers.get(String(agent?.id))()
+            } catch (error) {
+              ctx.logger?.warn?.('mentor: could not release a stale Mentor tool for Agent %s: %s', agent?.id, error)
+            }
+            runtime.rootDisposers.delete(String(agent?.id))
+          }
+          installForPrimaryAgent(ctx, config, runtime, adapters, agent)
+        } else {
+          hideFromNestedAgent(ctx, runtime, agent)
+        }
       } catch (error) {
         ctx.logger?.warn?.('mentor: could not compose tools for Agent %s: %s', agent?.id, error)
       }
@@ -1739,6 +1766,12 @@ export function installMentor(ctx, rawConfig, adapters) {
     const agents = typeof ctx.agents.list === 'function' ? ctx.agents.list() : ctx.agents.roots()
     for (const agent of agents) attachAgent(agent)
     ctx.on('agent/created', ({ agent }) => attachAgent(agent))
+    // A live Agent can outlive a plugin reload or a tool-layer rebuild, and a
+    // primary Agent must not lose the Mentor tool while the Session continues.
+    // Every claimed input is a cheap idempotent chance to restore it; the check
+    // reads the Agent's own tool view, so a lost registration is detected even
+    // when this plugin still believes the Agent is attached.
+    ctx.on('agent/inbox/claimed', ({ agent }) => attachAgent(agent))
   }
   installCommands(ctx, config, runtime, adapters)
   installMentorView(ctx, config, runtime, adapters)

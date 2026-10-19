@@ -36,8 +36,8 @@ monaco 与 markdown-it 由本包自己提供，不依赖 CDN。详见 [`git-grap
 
 给 Web 增加一个名为**听话模式**的 Agent 预设：把内置的**标准模式**原样复制，只删掉 model-facing
 的 `workflow` 工具（连同它专用的 `workflow-ptc` 运行时）。`subagent`、`subagent_fork`、计划模式、
-压缩和其余常规工具保持不变。详见
-[`obedient-preset/README.md`](./obedient-preset/README.md)。
+压缩和其余常规工具保持不变；子 Agent 同样被钉在这个没有 `workflow` 的预设上，且不能再向下派生。
+详见 [`obedient-preset/README.md`](./obedient-preset/README.md)。
 
 ### `model-capabilities`（已弃用）
 

@@ -100,11 +100,18 @@
                   provider: spawn
                   toolName: subagent
                   modelSelectionSettings: true
+                  # Children are pinned to this same preset, so they never regain
+                  # the workflow tool. Without `allowedAgentPresets` the model
+                  # cannot ask for a preset that has it (for example `standard`).
+                  agentPreset: obedient
+                  # The root may delegate once; a child may not delegate again.
+                  maxDepth: 1
               - id: tool-subagent-fork
                 name: '@deepseek-ai/dsh-tool-subagent'
                 config:
                   provider: fork
                   toolName: subagent_fork
+                  maxDepth: 1
           - id: tool-ask-user
             name: '@deepseek-ai/dsh-tool-ask-user'
           - id: tool-todo

@@ -26,7 +26,7 @@ DSH Plugins 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek
 | `git-graph/` | 持久包 | 可用 | Web 右侧栏的 Git 图谱：提交泳道图、未提交改动、文件差异 |
 | `delete-session/` | 持久包 | 可用 | 带确认的会话永久删除，级联删除子会话记录 |
 | `mentor/` | 持久包 | 可用（默认关闭） | 无工具的"纯对话"导师咨询，会话级标签页 + 全局设置 |
-| `obedient-preset/` | Agent 预设包 | 可用 | 标准模式去掉 `workflow` 工具，作为「听话模式」加入模式选择器 |
+| `obedient-preset/` | Agent 预设包 | 可用 | 标准模式去掉 `workflow` 工具，子 Agent 固定同一预设且不能再派生，作为「听话模式」加入模式选择器 |
 | `model-capabilities/` | 动态函数体 | **已弃用** | 已被新版 DSH 内置的模型能力设置取代 |
 
 ### 三类交付物形态
@@ -38,6 +38,8 @@ DSH Plugins 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek
 - **Agent 预设包**（`obedient-preset`）：同样是真实 npm 形包，但 patch 只插入一行
   `@deepseek-ai/dsh-agent-preset` 声明（`id`、`name`、`description`、`order`、`plugins`），描述一个
   模式而不是插件。安装方式与持久包相同，装完出现在新会话的模式选择器里，不提供也不修改任何服务。
+  预设可以对子 Agent 施加约束：`tool-subagent` 的 `agentPreset` 固定子 Agent 的预设，
+  `maxDepth` 限制派生深度；两者都写在预设自己的插件列表里。
 - **动态函数体**（`model-capabilities`）：`host.js` / `client.js` 是函数体，出现顶层 import 会直接
   失败；通过 `cordis_define` 的 `code.host` / `code.client` 注入当前会话。
 

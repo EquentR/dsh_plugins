@@ -1,0 +1,17 @@
+{
+  "name": "@dsh-plugins/obedient-preset",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DSH agent preset: standard mode without the workflow tool, offered as 听话模式.",
+  "type": "module",
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "files": [
+    "cordis.patch.yml",
+    "README.md"
+  ]
+}

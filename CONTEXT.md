@@ -14,31 +14,40 @@ DSH Plugins 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek
 - **模型能力**：模型是否支持推理等级、图片输入等能力元数据，不等同于 provider 的认证或网络配置。
 - **动态插件**：通过 `cordis_define` 注入 `code.host`/`code.client`，当前会话内生效的插件。
 - **持久插件**：作为 profile 本地包安装并在 patch 配置中加载，重启后继续生效的插件。
+- **Agent 预设**：`@deepseek-ai/dsh-agent-preset` 的一行声明，定义模式选择器里的一个模式及其插件列表；
+  预设包通过 bundle patch 插入这行声明，本身不提供 Host/Client 代码。
 
 ## 当前上下文
 
-仓库提供三类交付物，**每个插件一个独立包**，装一个就是装一个：
+仓库提供三类交付物，**每个交付物一个独立包**，装一个就是装一个：
 
 | 目录 | 形态 | 状态 | 作用 |
 | --- | --- | --- | --- |
 | `git-graph/` | 持久包 | 可用 | Web 右侧栏的 Git 图谱：提交泳道图、未提交改动、文件差异 |
 | `delete-session/` | 持久包 | 可用 | 带确认的会话永久删除，级联删除子会话记录 |
 | `mentor/` | 持久包 | 可用（默认关闭） | 无工具的"纯对话"导师咨询，会话级标签页 + 全局设置 |
+| `obedient-preset/` | Agent 预设包 | 可用 | 标准模式去掉 `workflow` 工具，作为「听话模式」加入模式选择器 |
 | `model-capabilities/` | 动态函数体 | **已弃用** | 已被新版 DSH 内置的模型能力设置取代 |
 
-### 两类插件形态
+### 三类交付物形态
 
 - **持久包**（`git-graph`、`delete-session`、`mentor`）：真实 npm 形包，`index.js` / `lib/` 使用顶层
   `import`，通过 `dsh.bundle.patch` 插入 Loader 行。安装走 `plugin_manager install_bundle` 或
   `dsh plugin --profile web add`，装完通常需要重启 Host、刷新页面。
   **不能**用 `cordis_define` 动态加载。
+- **Agent 预设包**（`obedient-preset`）：同样是真实 npm 形包，但 patch 只插入一行
+  `@deepseek-ai/dsh-agent-preset` 声明（`id`、`name`、`description`、`order`、`plugins`），描述一个
+  模式而不是插件。安装方式与持久包相同，装完出现在新会话的模式选择器里，不提供也不修改任何服务。
 - **动态函数体**（`model-capabilities`）：`host.js` / `client.js` 是函数体，出现顶层 import 会直接
   失败；通过 `cordis_define` 的 `code.host` / `code.client` 注入当前会话。
 
 ### 跨包约定
 
 - 包名统一在 `@dsh-plugins/` 作用域下，Client 模块 id **必须**等于包名，由 `scripts/validate.mjs` 校验；
-- 每个包只在自己的 `cordis.patch.yml` 里插入**一行** Loader，不提供聚合安装包；
+- 每个包只在自己的 `cordis.patch.yml` 里插入**一行**：持久包是插件 Loader 行，预设包是
+  `@deepseek-ai/dsh-agent-preset` 声明行；不提供聚合安装包；
+- 预设包复制内置预设时按 `presets/<id>.patch.yml` 逐行对齐，只改 `id` / `name` / `description` /
+  `order` 与刻意增删的插件行，并注明对照的 DSH 版本；
 - 会消耗模型额度或改写数据的能力默认保守：`mentor` 用 `enabled: false`；
 - 兼容性窗口声明为 DSH `>=0.2.1-rc.2 <0.2.2`，每包 README 记录其依赖的 Host 服务与 Client 槽位。
 

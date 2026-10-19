@@ -1,0 +1,18 @@
+# Independent bundle patch for @dsh-plugins/network-proxy.
+# This package owns exactly one Loader row and never pulls in another plugin.
+# `enabled` only controls whether the configured proxy is installed; the
+# Settings > Network proxy page is available while the proxy is off.
+- insert:
+    - id: dsh-network-proxy
+      name: '@dsh-plugins/network-proxy'
+      inject:
+        - connection
+        - settings
+      config:
+        enabled: false
+        mode: http
+        host: ''
+        port: 8080
+        username: ''
+        password: ''
+        noProxy: ''

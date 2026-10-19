@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Network proxy">
+  <defs>
+    <linearGradient id="bg" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2F6FED"/>
+      <stop offset="1" stop-color="#173E9C"/>
+    </linearGradient>
+    <linearGradient id="arc" x1="20" y1="20" x2="46" y2="46" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#C9DAFF"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="15" fill="url(#bg)"/>
+  <g fill="none" stroke="url(#arc)" stroke-width="3" stroke-linecap="round">
+    <circle cx="29" cy="31" r="15"/>
+    <path d="M14 31h30"/>
+    <path d="M29 16c5.4 5.1 8.4 10.1 8.4 15S34.4 40.9 29 46c-5.4-5.1-8.4-10.1-8.4-15S23.6 21.1 29 16Z"/>
+    <path d="M18 21.5c3.1 2.6 6.8 4 11 4s7.9-1.4 11-4"/>
+    <path d="M18 40.5c3.1-2.6 6.8-4 11-4s7.9 1.4 11 4"/>
+  </g>
+  <g transform="translate(36 34)">
+    <rect x="0" y="7" width="18" height="13" rx="3.5" fill="#FFB84D"/>
+    <path d="M4.2 7V5.2a4.8 4.8 0 0 1 9.6 0V7" fill="none" stroke="#FFB84D" stroke-width="2.6" stroke-linecap="round"/>
+    <circle cx="9" cy="13.5" r="2" fill="#5A3400"/>
+  </g>
+</svg>

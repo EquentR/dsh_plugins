@@ -3,7 +3,7 @@
 //
 // Three kinds of deliverable live here, and each gets the check that actually applies:
 //
-//   * persistent bundles (git-graph, delete-session, mentor) — real npm-shaped
+//   * persistent bundles (git-graph, delete-session, mentor, network-proxy) — real npm-shaped
 //     packages. Checked: package.json parses, `dsh.bundle.patch` is declared,
 //     every `files[]` entry exists, the bundle patch inserts exactly one Loader
 //     row named after the package, the Client module id equals the package name,
@@ -28,7 +28,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
-const BUNDLES = ['git-graph', 'delete-session', 'mentor']
+const BUNDLES = ['git-graph', 'delete-session', 'mentor', 'network-proxy']
 const PRESETS = ['obedient-preset']
 const FUNCTION_BODIES = ['model-capabilities']
 const AGENT_PRESET_PLUGIN = '@deepseek-ai/dsh-agent-preset'

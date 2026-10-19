@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Network Proxy",
+    "description": "Adds a Network proxy settings page that routes Host outbound requests through HTTP or SOCKS5; HTTP mode supports username/password authentication and SOCKS5 has no authentication."
+  }
+}

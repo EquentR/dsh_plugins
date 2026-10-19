@@ -13,6 +13,7 @@
 | [`git-graph`](./git-graph) | 可用 | 持久包 | 右侧栏 Git 标签页：提交泳道图、未提交改动、文件差异 |
 | [`delete-session`](./delete-session) | 可用 | 持久包 | 带确认的会话永久删除，级联删除子会话记录 |
 | [`mentor`](./mentor) | 可用（默认关闭） | 持久包 | 无工具的「纯对话」导师咨询，会话级标签页 + 全局设置 |
+| [`network-proxy`](./network-proxy) | 可用 | 持久包 | Host 出站请求的 HTTP/SOCKS5 代理设置页，HTTP 模式支持鉴权 |
 | [`obedient-preset`](./obedient-preset) | 可用 | Agent 预设包 | 内置「标准模式」去掉 `workflow` 工具，作为「听话模式」加入模式选择器 |
 | [`model-capabilities`](./model-capabilities) | **已弃用** | 动态函数体 | 原为第三方模型补推理等级与图片能力设置；新版 DSH 已内置，不再维护 |
 
@@ -32,6 +33,13 @@ monaco 与 markdown-it 由本包自己提供，不依赖 CDN。详见 [`git-grap
 主 Agent 可调用的 `mentor` 工具：召唤一个没有工具、不读工作区、只按固定系统提示作答的独立 Agent，
 拿一次第二意见。默认关闭，启用后才工作。详见 [`mentor/README.md`](./mentor/README.md)。
 
+### `network-proxy`
+
+在 Settings 增加「网络代理」页，为 Host 的出站 HTTP 请求安装 HTTP 或 SOCKS5 代理；HTTP 模式支持
+用户名/密码鉴权，SOCKS5 不提供鉴权。本机地址始终直连，并支持自定义绕过列表。它只作用于 Host
+进程的 `fetch`/undici dispatcher，**不配置桌面端 Chromium 自身的流量**。详见
+[`network-proxy/README.md`](./network-proxy/README.md)。
+
 ### `obedient-preset`
 
 给 Web 增加一个名为**听话模式**的 Agent 预设：把内置的**标准模式**原样复制，只删掉 model-facing
@@ -49,7 +57,7 @@ monaco 与 markdown-it 由本包自己提供，不依赖 CDN。详见 [`git-grap
 
 三类交付物的安装路径不同，不能混用：
 
-**持久包**（`git-graph`、`delete-session`、`mentor`）是真实 npm 形包，`index.js` / `lib/` 使用顶层
+**持久包**（`git-graph`、`delete-session`、`mentor`、`network-proxy`）是真实 npm 形包，`index.js` / `lib/` 使用顶层
 `import`，因此**不能**作为 `cordis_define` 动态插件加载。安装到当前 profile：
 
 ```text
@@ -74,6 +82,9 @@ pnpm install --config.auto-install-peers=false
 
 `--config.auto-install-peers=false` 必须显式传：否则 pnpm 会把握在 `peerDependencies` 里的 DSH 包
 当成待安装依赖，在插件目录里再拉一份约 580 MB 的 DSH。
+
+`network-proxy` 也需要在它自己的目录执行同样的 `pnpm install --config.auto-install-peers=false`：
+它自带 `undici@8.11.2`，而 profile 的 linked 安装不会把插件的依赖装进 profile。
 
 **Agent 预设包**（`obedient-preset`）同样是真实 npm 形包，但 patch 里插入的是一行
 `@deepseek-ai/dsh-agent-preset` 声明，而不是插件本体。装法相同：

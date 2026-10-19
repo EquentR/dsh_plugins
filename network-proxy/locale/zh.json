@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "网络代理",
+    "description": "新增网络代理设置页，为 Host 的出站请求配置 HTTP 或 SOCKS5 代理；HTTP 模式支持用户名密码鉴权，SOCKS5 不提供鉴权。"
+  }
+}

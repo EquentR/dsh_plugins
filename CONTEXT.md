@@ -26,12 +26,13 @@ DSH Plugins 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek
 | `git-graph/` | 持久包 | 可用 | Web 右侧栏的 Git 图谱：提交泳道图、未提交改动、文件差异 |
 | `delete-session/` | 持久包 | 可用 | 带确认的会话永久删除，级联删除子会话记录 |
 | `mentor/` | 持久包 | 可用（默认关闭） | 无工具的"纯对话"导师咨询，会话级标签页 + 全局设置 |
+| `network-proxy/` | 持久包 | 可用 | Host 出站请求的 HTTP/SOCKS5 代理设置，HTTP 模式支持鉴权 |
 | `obedient-preset/` | Agent 预设包 | 可用 | 标准模式去掉 `workflow` 工具，子 Agent 固定同一预设且不能再派生，作为「听话模式」加入模式选择器 |
 | `model-capabilities/` | 动态函数体 | **已弃用** | 已被新版 DSH 内置的模型能力设置取代 |
 
 ### 三类交付物形态
 
-- **持久包**（`git-graph`、`delete-session`、`mentor`）：真实 npm 形包，`index.js` / `lib/` 使用顶层
+- **持久包**（`git-graph`、`delete-session`、`mentor`、`network-proxy`）：真实 npm 形包，`index.js` / `lib/` 使用顶层
   `import`，通过 `dsh.bundle.patch` 插入 Loader 行。安装走 `plugin_manager install_bundle` 或
   `dsh plugin --profile web add`，装完通常需要重启 Host、刷新页面。
   **不能**用 `cordis_define` 动态加载。
@@ -51,6 +52,8 @@ DSH Plugins 是基于 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek
 - 预设包复制内置预设时按 `presets/<id>.patch.yml` 逐行对齐，只改 `id` / `name` / `description` /
   `order` 与刻意增删的插件行，并注明对照的 DSH 版本；
 - 会消耗模型额度或改写数据的能力默认保守：`mentor` 用 `enabled: false`；
+- `network-proxy` 只改写 Host 进程的 `fetch`/undici dispatcher，不尝试配置桌面端 Chromium；
+  其 `enabled` 只控制是否安装代理，设置页在关闭时仍可用；
 - 兼容性窗口声明为 DSH `>=0.2.1-rc.2 <0.2.2`，每包 README 记录其依赖的 Host 服务与 Client 槽位。
 
 ### 已弃用的 model-capabilities

@@ -1,0 +1,28 @@
+# Independent bundle patch for @dsh-plugins/auth-gateway.
+# This package owns exactly one Loader row and never pulls in another plugin.
+#
+# `enabled` is off by default: installing the bundle must not silently expose a
+# new network listener. Turn it on from Settings > Authentication gateway, or
+# set `enabled: true` here.
+- insert:
+    - id: dsh-auth-gateway
+      name: '@dsh-plugins/auth-gateway'
+      inject:
+        - connection
+      config:
+        enabled: false
+        port: 3080
+        targetHost: 127.0.0.1
+        # 0 means "use the live webServer port". The desktop shell launches the
+        # core host with `--port 0`, so a fixed number would be wrong there.
+        targetPort: 0
+        addresses: []
+        username: admin
+        password: ''
+        realm: DeepSeek Harness Authentication
+        allowedHosts: []
+        allowedOrigins: []
+        sessionMaxAgeSeconds: 86400
+        sessionIdleTimeoutSeconds: 43200
+        upstreamTimeoutMs: 30000
+        requestTimeoutMs: 120000

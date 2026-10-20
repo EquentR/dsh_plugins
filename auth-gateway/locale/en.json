@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Authentication gateway",
+    "description": "Adds an authenticating reverse-proxy port in front of this dsh: a login page, session authentication, password change and TOTP, with per-device session revocation. The core web server stays loopback-only and is left untouched."
+  }
+}

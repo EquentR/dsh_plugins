@@ -15,9 +15,14 @@ window.__ModuleLoader__.load({
       title: '网络代理',
       summary: '为 Host 的出站请求配置 HTTP 或 SOCKS5 代理；HTTP 模式支持用户名和密码鉴权。',
       loading: '正在读取网络代理设置…',
+      retry: '重试读取',
+      conflictReadFailed: '设置已在其他位置修改，但重新读取失败。请重试读取最新设置。',
+      invalidUsername: '用户名最长 255 个字符，且不能包含控制字符。',
+      invalidPassword: '密码最长 4096 个字符，且不能包含空字符。',
+      invalidNoProxy: '绕过列表最长 4096 个字符，且不能包含控制字符。',
       unavailable: '网络代理设置当前不可用。',
       readOnly: '当前 Profile 的插件配置不可写；请直接编辑 dsh-network-proxy 行。',
-      conflict: '设置已在其他位置修改，已重新读取，请再保存一次。',
+      conflict: '设置已在其他位置修改，最新保存值已替换草稿；请检查后再次保存。',
       saveFailed: '设置未能写入 Profile 配置，请查看 Host 日志。',
       invalidSettings: '设置未通过校验，请检查主机、端口和鉴权信息。',
       invalidHost: '请填写代理主机，不要包含协议、路径或空格。',
@@ -64,9 +69,14 @@ window.__ModuleLoader__.load({
       title: 'Network proxy',
       summary: 'Route Host outbound requests through an HTTP or SOCKS5 proxy. HTTP mode supports username and password authentication.',
       loading: 'Loading network proxy settings…',
+      retry: 'Retry loading',
+      conflictReadFailed: 'These settings changed elsewhere, but reloading failed. Retry to read the latest settings.',
+      invalidUsername: 'Use at most 255 characters with no control characters.',
+      invalidPassword: 'Use at most 4096 characters with no NUL character.',
+      invalidNoProxy: 'Use at most 4096 characters with no control characters.',
       unavailable: 'Network proxy settings are unavailable.',
       readOnly: 'This Profile stores plugin configuration read-only; edit the dsh-network-proxy row instead.',
-      conflict: 'These settings changed elsewhere. They were reloaded; save again.',
+      conflict: 'These settings changed elsewhere. The latest saved values replaced your draft; review them before saving again.',
       saveFailed: 'The Profile configuration write failed; check the Host log.',
       invalidSettings: 'Settings did not pass validation. Check the host, port, and credentials.',
       invalidHost: 'Enter a proxy host without a scheme, path, or spaces.',
@@ -156,41 +166,52 @@ window.__ModuleLoader__.load({
     }
 
     function installStyle() {
-      if (typeof document === 'undefined' || document.getElementById(STYLE_ID) !== null) return
+      if (typeof document === 'undefined') return
       const style = document.createElement('style')
       style.id = STYLE_ID
       style.dataset.plugin = '@dsh-plugins/network-proxy'
       style.textContent = `
-.network-proxy{box-sizing:border-box;display:flex;flex-direction:column;gap:14px;width:100%;max-width:820px;min-width:0;padding:2px 0 20px;color:var(--dsw-alias-label-primary,#171717);font:var(--dsw-font-xs-13,13px/1.5 system-ui,sans-serif)}
+.network-proxy{box-sizing:border-box;display:flex;flex-direction:column;gap:20px;width:100%;max-width:820px;min-width:0;padding:2px 0 20px;color:var(--dsw-alias-label-primary);font:13px/1.5 system-ui,sans-serif}
 .network-proxy-header{display:flex;flex-direction:column;gap:4px;min-width:0}
 .network-proxy-title{margin:0;font-size:18px;line-height:24px;font-weight:650;overflow-wrap:anywhere}
-.network-proxy-summary{margin:0;color:var(--dsw-alias-label-secondary,#4b5563);overflow-wrap:anywhere}
-.network-proxy-card{display:flex;flex-direction:column;gap:14px;min-width:0;padding:16px;border:1px solid var(--dsw-alias-border-l1,#e5e7eb);border-radius:10px;background:var(--dsw-alias-bg-layer-1,#fff)}
+.network-proxy-summary{margin:0;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.network-proxy-card{display:flex;flex-direction:column;gap:20px;min-width:0;padding:16px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1)}
 .network-proxy-row{display:flex;align-items:center;gap:8px;min-width:0}
-.network-proxy-row input[type=checkbox]{width:16px;height:16px;margin:0}
 .network-proxy-row span{font-weight:600}
-.network-proxy-hint{margin:0;color:var(--dsw-alias-label-tertiary,#6b7280);font-size:11px;line-height:16px;overflow-wrap:anywhere}
-.network-proxy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;min-width:0}
-.network-proxy-field{display:flex;flex-direction:column;gap:4px;min-width:0}
-.network-proxy-field>label,.network-proxy-field>span{color:var(--dsw-alias-label-secondary,#4b5563);font-size:12px;font-weight:600}
-.network-proxy-field input,.network-proxy-field select{box-sizing:border-box;width:100%;min-height:34px;padding:6px 8px;border:1px solid var(--dsw-alias-border-l2,#d1d5db);border-radius:6px;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary,#171717);font:inherit}
+.network-proxy-switch{appearance:none;box-sizing:border-box;position:relative;flex:none;width:36px;height:20px;margin:0;border:1px solid var(--dsw-alias-border-l2);border-radius:999px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;transition:background .15s}
+.network-proxy-switch::before{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--dsw-alias-label-secondary);transition:transform .15s}
+.network-proxy-switch:checked{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary)}
+.network-proxy-switch:checked::before{transform:translateX(16px);background:var(--dsw-alias-bg-base)}
+.network-proxy-switch:disabled{cursor:default;opacity:.55}
+.network-proxy-hint{margin:0;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
+.network-proxy-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr));gap:16px;min-width:0}
+.network-proxy-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.network-proxy-field>label,.network-proxy-field>span{color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:600}
+.network-proxy-field input:not([type=checkbox]),.network-proxy-field select{box-sizing:border-box;width:100%;height:38px;padding:8px 10px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit}
+.network-proxy-field input[aria-invalid=true]{border-color:var(--dsw-alias-state-error-primary)}
+.network-proxy-field-error{margin:0;color:var(--dsw-alias-state-error-primary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
 .network-proxy-field input:disabled,.network-proxy-field select:disabled{opacity:.6}
-.network-proxy-check{display:flex;align-items:center;gap:8px;min-width:0;font-weight:400}
-.network-proxy-check input{width:16px;height:16px;min-height:0;padding:0}
-.network-proxy-note{padding:10px 12px;border:1px solid var(--dsw-alias-border-l1,#e5e7eb);border-radius:6px;background:var(--dsw-alias-bg-layer-2,#f8fafc);color:var(--dsw-alias-label-secondary,#4b5563);overflow-wrap:anywhere}
-.network-proxy-note.error{border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary,#b91c1c) 32%,var(--dsw-alias-border-l1,#e5e7eb));color:var(--dsw-alias-state-error-primary,#b91c1c)}
-.network-proxy-note.success{border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary,#15803d) 32%,var(--dsw-alias-border-l1,#e5e7eb));color:var(--dsw-alias-state-success-primary,#15803d)}
+.network-proxy-field>.network-proxy-check{display:flex;align-items:center;gap:8px;min-width:0;font-weight:400}
+.network-proxy-check input{flex:none;width:16px;height:16px;margin:0;accent-color:var(--dsw-alias-brand-primary)}
+.network-proxy-note{padding:10px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.network-proxy-note.error{border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 32%,var(--dsw-alias-border-l1));color:var(--dsw-alias-state-error-primary)}
+.network-proxy-note.success{border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 32%,var(--dsw-alias-border-l1));color:var(--dsw-alias-state-success-primary)}
+.network-proxy-note.warn{border-color:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 32%,var(--dsw-alias-border-l1));color:var(--dsw-alias-state-warn-primary)}
 .network-proxy-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.network-proxy-actions button{min-height:32px;padding:6px 12px;border:1px solid var(--dsw-alias-border-l2,#d1d5db);border-radius:6px;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary,#171717);font:inherit;cursor:pointer}
-.network-proxy-actions button:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,#f3f4f6)}
+.network-proxy-actions button{min-height:38px;padding:8px 14px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;cursor:pointer}
+.network-proxy-actions button:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2)}
+.network-proxy-actions button.primary{background:color-mix(in srgb,var(--dsw-alias-brand-primary) 12%,var(--dsw-alias-bg-base));border-color:color-mix(in srgb,var(--dsw-alias-brand-primary) 40%,var(--dsw-alias-border-l2));color:var(--dsw-alias-brand-primary);font-weight:600}
+.network-proxy-actions button.primary:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-brand-primary) 20%,var(--dsw-alias-bg-base))}
 .network-proxy-actions button:disabled{cursor:default;opacity:.55}
+.network-proxy :is(input,select,button):focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:3px}
 .network-proxy-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
-.network-proxy-badge{padding:2px 8px;border-radius:999px;font-size:11px;line-height:18px;background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-secondary,#4b5563)}
-.network-proxy-badge.active{background:color-mix(in srgb,var(--dsw-alias-state-success-primary,#15803d) 14%,transparent);color:var(--dsw-alias-state-success-primary,#15803d)}
-.network-proxy-mono{font:var(--dsw-font-xxs-12,12px/1.5 ui-monospace,monospace);overflow-wrap:anywhere}
-@media (max-width:640px){.network-proxy-card{padding:12px}}
+.network-proxy-badge{padding:2px 8px;border-radius:999px;font-size:11px;line-height:18px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}
+.network-proxy-badge.active{background:color-mix(in srgb,var(--dsw-alias-state-success-primary) 14%,transparent);color:var(--dsw-alias-state-success-primary)}
+.network-proxy-mono{font:12px/1.5 ui-monospace,monospace;overflow-wrap:anywhere}
+@media(prefers-reduced-motion:reduce){.network-proxy-switch,.network-proxy-switch::before{transition:none}}
       `
       document.head.appendChild(style)
+      return () => style.remove()
     }
 
     function createRpc(connection) {
@@ -215,329 +236,171 @@ window.__ModuleLoader__.load({
 
     function createSettingsPage(t, rpc) {
       return function NetworkProxySettingsPage(props) {
-        const [state, setState] = React.useState({
-          loading: true,
-          saving: false,
-          testing: false,
-          data: null,
-          draft: null,
-          error: null,
-          saved: false,
-          test: null,
-        })
+        const [state, setState] = React.useState({ loading: true, saving: false, testing: false, data: null, draft: null, notice: null, touched: {} })
         const controller = React.useRef(null)
-
-        const load = React.useCallback(async () => {
-          setState((previous) => ({ ...previous, loading: true, error: null, saved: false }))
+        const fieldId = React.useId()
+        const load = React.useCallback(async (explanation = null) => {
+          setState((previous) => ({ ...previous, loading: true, saving: false, testing: false, notice: explanation }))
           controller.current?.abort()
           const next = new AbortController()
           controller.current = next
           const result = await rpc.read(next.signal)
           if (next.signal.aborted) return
-          if (!result.ok) {
-            setState((previous) => ({ ...previous, loading: false, error: 'unavailable' }))
-            return
-          }
-          const view = result.response.result
+          const view = result.ok ? result.response.result : undefined
           if (view?.kind !== 'settings') {
-            setState((previous) => ({ ...previous, loading: false, error: view?.kind === 'fault' && view.code === 'read_only' ? 'readOnly' : 'unavailable' }))
+            const key = view?.code === 'read_only' ? 'readOnly' : 'unavailable'
+            setState((previous) => ({ ...previous, loading: false, notice: { kind: 'error', key: explanation ? 'conflictReadFailed' : key }, readFailed: true }))
             return
           }
-          setState({
-            loading: false,
-            saving: false,
-            testing: false,
-            data: view,
-            draft: draftFrom(view.values),
-            error: null,
-            saved: false,
-            test: null,
-          })
+          setState({ loading: false, saving: false, testing: false, data: view, draft: draftFrom(view.values), notice: explanation, touched: {}, readFailed: false })
         }, [])
-
         React.useEffect(() => {
-          installStyle()
           void load()
           return () => controller.current?.abort()
         }, [load])
 
-        const draft = state.draft
-        const data = state.data
-        const update = (key, value) => setState((previous) => previous.draft === null
-          ? previous
-          : { ...previous, saved: false, error: null, draft: { ...previous.draft, [key]: value } })
-
+        // Every draft transition invalidates the result of the previous action.
+        const updateDraft = (change) => setState((previous) => previous.draft === null ? previous : {
+          ...previous, notice: null, draft: { ...previous.draft, ...change(previous.draft) },
+        })
+        const update = (key, value) => updateDraft(() => ({ [key]: value }))
+        const touch = (key) => setState((previous) => ({ ...previous, touched: { ...previous.touched, [key]: true } }))
+        const h = React.createElement
+        const notice = (value) => value ? h('div', {
+          className: `network-proxy-note ${value.kind}`, role: value.kind === 'error' ? 'alert' : 'status', 'aria-live': 'polite',
+        }, t(value.key, value.params)) : null
         if (props?.view === 'summary') return t('summary')
-        if (state.loading) {
-          return React.createElement('div', { className: 'network-proxy-note', role: 'status' }, t('loading'))
-        }
-        if (state.error !== null && data === null) {
-          return React.createElement('div', { className: 'network-proxy-note error', role: 'status' }, t(state.error))
-        }
-        if (draft === null || data === null) {
-          return React.createElement('div', { className: 'network-proxy-note', role: 'status' }, t('unavailable'))
-        }
+        if (state.loading) return h('div', { className: 'network-proxy', role: 'status' }, t('loading'))
+        if (state.readFailed || state.draft === null || state.data === null) return h('div', { className: 'network-proxy' },
+          notice(state.notice || { kind: 'error', key: 'unavailable' }),
+          h('div', { className: 'network-proxy-actions' }, h('button', { type: 'button', onClick: () => { void load(state.notice?.key === 'conflictReadFailed' ? { kind: 'warn', key: 'conflict' } : null) } }, t('retry'))),
+        )
 
-        const port = Number(draft.port)
+        const { draft, data } = state
+        const errors = {}
         const host = draft.host.trim()
-        const hostValid = host !== '' && !/[\s/?#@\\]/u.test(host) && !host.includes('://')
-        const portValid = Number.isSafeInteger(port) && port >= 1 && port <= 65535
-        const credentialsValid = draft.mode === 'socks5' || draft.username !== '' || draft.password === ''
-        const valid = hostValid && portValid && credentialsValid
-        const changed = changedFrom(draft, data.values)
+        if (host === '' || host.length > 253 || /[\s/?#@\\]/u.test(host) || host.includes('://')) errors.host = 'invalidHost'
+        const port = Number(draft.port)
+        if (!Number.isSafeInteger(port) || port < 1 || port > 65535) errors.port = 'invalidPort'
+        if (draft.mode === 'http') {
+          if (draft.username.trim().length > 255 || /[\u0000-\u001f\u007f]/u.test(draft.username.trim())) errors.username = 'invalidUsername'
+          if (!draft.clearPassword && (draft.password.length > 4096 || draft.password.includes('\u0000'))) errors.password = 'invalidPassword'
+          if (!draft.clearPassword && draft.password !== '' && draft.username.trim() === '') {
+            errors.username = 'invalidUsernamePassword'
+            errors.password ||= 'invalidUsernamePassword'
+          }
+        }
+        if (draft.noProxy.trim().length > 4096 || /[\u0000-\u001f\u007f]/u.test(draft.noProxy.trim())) errors.noProxy = 'invalidNoProxy'
         const busy = state.saving || state.testing
         const readOnly = data.writable !== true
-        const disabled = busy || readOnly
         const formDisabled = busy || readOnly
-
+        const changed = changedFrom(draft, data.values)
+        const validate = () => {
+          if (Object.keys(errors).length === 0) return true
+          setState((previous) => ({ ...previous, touched: { host: true, port: true, username: true, password: true, noProxy: true }, notice: { kind: 'error', key: 'invalidSettings' } }))
+          return false
+        }
         const save = async () => {
-          if (!valid || !changed) {
-            setState((previous) => ({
-              ...previous,
-              error: !hostValid ? 'invalidHost' : !portValid ? 'invalidPort' : !credentialsValid ? 'invalidUsernamePassword' : null,
-              saved: false,
-            }))
-            return
-          }
-          setState((previous) => ({ ...previous, saving: true, error: null, saved: false, test: null }))
-          const result = await rpc.save(payloadFrom(draft), data.revision)
+          if (!validate() || !changed || busy || readOnly) return
+          controller.current?.abort()
+          const next = new AbortController()
+          controller.current = next
+          setState((previous) => ({ ...previous, saving: true, notice: null }))
+          const result = await rpc.save(payloadFrom(draft), data.revision, next.signal)
+          if (next.signal.aborted) return
           const view = result.ok ? result.response.result : undefined
           if (view?.kind === 'settings') {
-            setState({
-              loading: false,
-              saving: false,
-              testing: false,
-              data: { ...data, ...view, values: view.values },
-              draft: draftFrom(view.values),
-              error: null,
-              saved: true,
-              test: null,
-            })
+            setState({ loading: false, saving: false, testing: false, data: { ...data, ...view }, draft: draftFrom(view.values), notice: { kind: 'success', key: 'saved' }, touched: {} })
             return
           }
           if (view?.kind === 'fault' && view.code === 'conflict') {
-            setState((previous) => ({ ...previous, saving: false, error: 'conflict', saved: false }))
-            void load()
+            void load({ kind: 'warn', key: 'conflict' })
             return
           }
-          const error = view?.kind === 'fault' && view.code === 'read_only' ? 'readOnly'
-            : view?.kind === 'fault' && view.code === 'invalid_settings' ? 'invalidSettings'
-              : view?.kind === 'fault' && view.code === 'save_failed' ? 'saveFailed'
-                : 'unavailable'
-          setState((previous) => ({ ...previous, saving: false, error, saved: false }))
+          const key = view?.code === 'read_only' ? 'readOnly' : view?.code === 'invalid_settings' ? 'invalidSettings' : view?.code === 'save_failed' ? 'saveFailed' : 'unavailable'
+          setState((previous) => ({ ...previous, saving: false, notice: { kind: 'error', key } }))
         }
-
         const test = async () => {
-          if (!valid) {
-            setState((previous) => ({
-              ...previous,
-              error: !hostValid ? 'invalidHost' : !portValid ? 'invalidPort' : !credentialsValid ? 'invalidUsernamePassword' : null,
-              test: null,
-            }))
-            return
-          }
-          setState((previous) => ({ ...previous, testing: true, error: null, saved: false, test: null }))
-          const result = await rpc.test(payloadFrom(draft, { forTest: true }))
+          if (!validate() || busy) return
+          controller.current?.abort()
+          const next = new AbortController()
+          controller.current = next
+          setState((previous) => ({ ...previous, testing: true, notice: null }))
+          const result = await rpc.test(payloadFrom(draft, { forTest: true }), next.signal)
+          if (next.signal.aborted) return
           const view = result.ok ? result.response.result : undefined
-          if (view?.ok === true) {
-            setState((previous) => ({ ...previous, testing: false, test: { kind: 'ok', ...view } }))
-            return
-          }
-          setState((previous) => ({
-            ...previous,
-            testing: false,
-            test: {
-              kind: 'error',
-              code: view?.code ?? 'failed',
-              message: view?.message ?? '',
-              target: view?.target,
-            },
-          }))
+          const value = view?.ok === true
+            ? { kind: 'success', key: 'testOk', params: { status: view.status, ms: view.latencyMs } }
+            : { kind: 'error', key: view?.code === 'timeout' ? 'testTimeout' : 'testFailed', params: { message: view?.message || t('unavailable') } }
+          setState((previous) => ({ ...previous, testing: false, notice: value }))
         }
-
-        const modeField = React.createElement('label', { className: 'network-proxy-field' },
-          React.createElement('span', null, t('mode')),
-          React.createElement('select', {
-            value: draft.mode,
-            disabled: formDisabled,
-            onChange: (event) => {
-              const mode = event.target.value === 'socks5' ? 'socks5' : 'http'
-              setState((previous) => previous.draft === null ? previous : {
-                ...previous,
-                saved: false,
-                error: null,
-                draft: {
-                  ...previous.draft,
-                  mode,
-                  port: previous.draft.port === (mode === 'socks5' ? '8080' : '1080')
-                    ? (mode === 'socks5' ? '1080' : '8080')
-                    : previous.draft.port,
-                  username: mode === 'socks5' ? '' : previous.draft.username,
-                  password: mode === 'socks5' ? '' : previous.draft.password,
-                  clearPassword: mode === 'socks5' ? false : previous.draft.clearPassword,
-                },
-              })
-            },
-            'aria-label': t('mode'),
-          },
-            React.createElement('option', { value: 'http' }, t('modeHttp')),
-            React.createElement('option', { value: 'socks5' }, t('modeSocks5')),
-          ),
+        const field = (key, options = {}) => {
+          const error = state.touched[key] && errors[key]
+          const id = `${fieldId}-${key}`
+          const hintId = options.hint ? `${id}-hint` : null
+          const errorId = error ? `${id}-error` : null
+          return h('div', { className: 'network-proxy-field', key },
+            h('label', { htmlFor: id }, t(key)),
+            h('input', {
+              id, type: 'text', value: draft[key], disabled: formDisabled,
+              onChange: (event) => update(key, event.target.value), onBlur: () => touch(key),
+              ...options.input,
+              'aria-invalid': Boolean(error), 'aria-describedby': [hintId, errorId].filter(Boolean).join(' ') || undefined,
+            }),
+            options.hint ? h('small', { className: 'network-proxy-hint', id: hintId }, t(options.hint)) : null,
+            error ? h('small', { className: 'network-proxy-field-error', id: errorId }, t(error)) : null,
+            options.after,
+          )
+        }
+        const modeField = h('label', { className: 'network-proxy-field' }, h('span', null, t('mode')),
+          h('select', { value: draft.mode, disabled: formDisabled, onChange: (event) => {
+            const mode = event.target.value === 'socks5' ? 'socks5' : 'http'
+            updateDraft((previous) => ({ mode,
+              port: previous.port === (mode === 'socks5' ? '8080' : '1080') ? (mode === 'socks5' ? '1080' : '8080') : previous.port,
+              username: mode === 'socks5' ? '' : previous.username,
+              password: mode === 'socks5' ? '' : previous.password,
+              clearPassword: mode === 'socks5' ? false : previous.clearPassword,
+            }))
+          } }, h('option', { value: 'http' }, t('modeHttp')), h('option', { value: 'socks5' }, t('modeSocks5'))),
         )
-
-        const authFields = draft.mode === 'http'
-          ? [
-              React.createElement('label', { className: 'network-proxy-field', key: 'username' },
-                React.createElement('span', null, t('username')),
-                React.createElement('input', {
-                  type: 'text',
-                  value: draft.username,
-                  autoComplete: 'username',
-                  disabled: formDisabled,
-                  onChange: (event) => update('username', event.target.value),
-                  'aria-label': t('username'),
-                }),
-              ),
-              React.createElement('label', { className: 'network-proxy-field', key: 'password' },
-                React.createElement('span', null, t('password')),
-                React.createElement('input', {
-                  type: 'password',
-                  value: draft.password,
-                  autoComplete: 'new-password',
-                  placeholder: data.values.hasPassword ? t('passwordSavedPlaceholder') : t('passwordPlaceholder'),
-                  disabled: formDisabled || draft.clearPassword,
-                  onChange: (event) => update('password', event.target.value),
-                  'aria-label': t('password'),
-                }),
-                data.values.hasPassword
-                  ? React.createElement('label', { className: 'network-proxy-check' },
-                      React.createElement('input', {
-                        type: 'checkbox',
-                        checked: draft.clearPassword,
-                        disabled: formDisabled,
-                        onChange: (event) => setState((previous) => previous.draft === null ? previous : {
-                          ...previous,
-                          saved: false,
-                          draft: { ...previous.draft, clearPassword: event.target.checked, password: event.target.checked ? '' : previous.draft.password },
-                        }),
-                      }),
-                      React.createElement('span', null, t('clearPassword')),
-                    )
-                  : null,
-              ),
-            ]
-          : null
-
-        const status = state.test === null ? null : state.test.kind === 'ok'
-          ? React.createElement('div', { className: 'network-proxy-note success', role: 'status', 'aria-live': 'polite' },
-              t('testOk', { status: state.test.status, ms: state.test.latencyMs }))
-          : React.createElement('div', { className: 'network-proxy-note error', role: 'status', 'aria-live': 'polite' },
-              t(state.test.code === 'timeout' ? 'testTimeout' : 'testFailed', { message: state.test.message || t('unavailable') }))
-
-        const applyState = data.active
-          ? React.createElement('span', { className: 'network-proxy-badge active' }, t('active'))
-          : React.createElement('span', { className: 'network-proxy-badge' }, t('inactive'))
-
-        return React.createElement('div', { className: 'network-proxy', role: 'region', 'aria-label': t('title') },
-          React.createElement('header', { className: 'network-proxy-header' },
-            React.createElement('h2', { className: 'network-proxy-title' }, t('title')),
-            React.createElement('p', { className: 'network-proxy-summary' }, t('summary')),
+        return h('div', { className: 'network-proxy', role: 'region', 'aria-label': t('title') },
+          h('header', { className: 'network-proxy-header' }, h('h2', { className: 'network-proxy-title' }, t('title')), h('p', { className: 'network-proxy-summary' }, t('summary'))),
+          h('section', { className: 'network-proxy-card' },
+            h('label', { className: 'network-proxy-row' },
+              h('input', { type: 'checkbox', className: 'network-proxy-switch', role: 'switch', 'aria-checked': draft.enabled, 'aria-describedby': `${fieldId}-enabled-hint`, checked: draft.enabled, disabled: formDisabled, onChange: (event) => update('enabled', event.target.checked) }),
+              h('span', null, t('enabled'))),
+            h('p', { className: 'network-proxy-hint', id: `${fieldId}-enabled-hint` }, t('enabledHint')),
+            h('div', { className: 'network-proxy-grid' }, modeField,
+              field('host', { hint: 'hostHint', input: { spellCheck: false } }),
+              field('port', { input: { type: 'number', min: 1, max: 65535, step: 1 } }),
+              draft.mode === 'http' ? field('username', { input: { autoComplete: 'username' } }) : null,
+              draft.mode === 'http' ? field('password', { input: { type: 'password', autoComplete: 'new-password', disabled: formDisabled || draft.clearPassword, placeholder: t(data.values.hasPassword ? 'passwordSavedPlaceholder' : 'passwordPlaceholder') },
+                after: data.values.hasPassword ? h('label', { className: 'network-proxy-check' },
+                  h('input', { type: 'checkbox', checked: draft.clearPassword, disabled: formDisabled, onChange: (event) => {
+                    const clearPassword = event.target.checked
+                    updateDraft((previous) => ({ clearPassword, password: clearPassword ? '' : previous.password }))
+                  } }), h('span', null, t('clearPassword'))) : null,
+              }) : null,
+            ),
+            h('p', { className: 'network-proxy-hint' }, t(draft.mode === 'http' ? 'httpAuthHint' : 'socks5AuthHint')),
+            field('noProxy', { hint: 'noProxyHint', input: { placeholder: 'localhost, .internal.example, 127.0.0.1', spellCheck: false } }),
+            h('div', { className: 'network-proxy-status' },
+              h('span', { className: `network-proxy-badge${data.active ? ' active' : ''}` }, t(data.active ? 'active' : 'inactive')),
+              data.proxy ? h('span', { className: 'network-proxy-mono' }, t('currentProxy', { proxy: data.proxy })) : null),
+            data.error ? h('p', { className: 'network-proxy-field-error' }, t('lastError', { message: data.error })) : null,
+            readOnly ? h('div', { className: 'network-proxy-note' }, t('readOnly')) : null,
+            h('div', { className: 'network-proxy-actions' },
+              h('button', { type: 'button', className: 'primary', disabled: formDisabled || (!changed && Object.keys(errors).length === 0), onClick: () => { void save() } }, t(state.saving ? 'saving' : 'save')),
+              h('button', { type: 'button', disabled: busy, onClick: () => { void test() } }, t(state.testing ? 'testing' : 'test'))),
+            notice(state.notice),
+            h('p', { className: 'network-proxy-hint' }, t('testTarget', { target: 'https://www.baidu.com/' })),
           ),
-          React.createElement('section', { className: 'network-proxy-card' },
-            React.createElement('label', { className: 'network-proxy-row' },
-              React.createElement('input', {
-                type: 'checkbox',
-                checked: draft.enabled,
-                disabled: formDisabled,
-                onChange: (event) => update('enabled', event.target.checked),
-              }),
-              React.createElement('span', null, t('enabled')),
-            ),
-            React.createElement('p', { className: 'network-proxy-hint' }, t('enabledHint')),
-            React.createElement('div', { className: 'network-proxy-grid' },
-              modeField,
-              React.createElement('label', { className: 'network-proxy-field' },
-                React.createElement('span', null, t('host')),
-                React.createElement('input', {
-                  type: 'text',
-                  value: draft.host,
-                  disabled: formDisabled,
-                  onChange: (event) => update('host', event.target.value),
-                  'aria-label': t('host'),
-                  spellCheck: false,
-                }),
-                React.createElement('small', { className: 'network-proxy-hint' }, t('hostHint')),
-              ),
-              React.createElement('label', { className: 'network-proxy-field' },
-                React.createElement('span', null, t('port')),
-                React.createElement('input', {
-                  type: 'number',
-                  min: 1,
-                  max: 65535,
-                  step: 1,
-                  value: draft.port,
-                  disabled: formDisabled,
-                  onChange: (event) => update('port', event.target.value),
-                  'aria-label': t('port'),
-                }),
-              ),
-              authFields,
-            ),
-            React.createElement('p', { className: 'network-proxy-hint' }, t(draft.mode === 'http' ? 'httpAuthHint' : 'socks5AuthHint')),
-            React.createElement('label', { className: 'network-proxy-field' },
-              React.createElement('span', null, t('noProxy')),
-              React.createElement('input', {
-                type: 'text',
-                value: draft.noProxy,
-                disabled: formDisabled,
-                placeholder: 'localhost, .internal.example, 127.0.0.1',
-                onChange: (event) => update('noProxy', event.target.value),
-                'aria-label': t('noProxy'),
-                spellCheck: false,
-              }),
-              React.createElement('small', { className: 'network-proxy-hint' }, t('noProxyHint')),
-            ),
-            React.createElement('div', { className: 'network-proxy-status' },
-              applyState,
-              data.proxy !== null && data.proxy !== undefined
-                ? React.createElement('span', { className: 'network-proxy-mono' }, t('currentProxy', { proxy: data.proxy }))
-                : null,
-            ),
-            data.error !== null && data.error !== undefined
-              ? React.createElement('div', { className: 'network-proxy-note error', role: 'status' }, t('lastError', { message: data.error }))
-              : null,
-            status,
-            state.error !== null
-              ? React.createElement('div', { className: 'network-proxy-note error', role: 'status', 'aria-live': 'polite' }, t(state.error))
-              : null,
-            state.saved
-              ? React.createElement('div', { className: 'network-proxy-note success', role: 'status', 'aria-live': 'polite' }, t('saved'))
-              : null,
-            readOnly
-              ? React.createElement('div', { className: 'network-proxy-note' }, t('readOnly'))
-              : null,
-            React.createElement('div', { className: 'network-proxy-actions' },
-              React.createElement('button', {
-                type: 'button',
-                disabled: disabled || !changed || !valid,
-                onClick: () => { void save() },
-              }, state.saving ? t('saving') : t('save')),
-              React.createElement('button', {
-                type: 'button',
-                disabled: busy || !valid,
-                onClick: () => { void test() },
-              }, state.testing ? t('testing') : t('test')),
-            ),
-            React.createElement('p', { className: 'network-proxy-hint' }, t('testTarget', { target: 'https://www.baidu.com/' })),
-            data.envProxy === true
-              ? React.createElement('div', { className: 'network-proxy-note' }, t('envProxyHint'))
-              : null,
-            React.createElement('div', { className: 'network-proxy-note' }, t('scopeHint')),
-          ),
+          h('section', { className: 'network-proxy-card' },
+            data.envProxy === true ? h('div', { className: 'network-proxy-note warn' }, t('envProxyHint')) : null,
+            h('p', { className: 'network-proxy-hint' }, t('scopeHint'))),
         )
       }
     }
-
     function apply(ctx) {
       const locale = ctx.locale
       const slots = ctx.slots
@@ -558,9 +421,7 @@ window.__ModuleLoader__.load({
         inject: () => ({ rpc }),
       }, SettingsPage)), 'network proxy settings section')
 
-      ctx.effect(() => () => {
-        if (typeof document !== 'undefined') document.getElementById(STYLE_ID)?.remove()
-      }, 'network proxy stylesheet')
+      ctx.effect(installStyle, 'network proxy stylesheet')
     }
 
     exports.inject = ['connection', 'locale', 'slots']

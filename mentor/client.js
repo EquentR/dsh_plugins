@@ -55,6 +55,12 @@ window.__ModuleLoader__.load({
       save: '保存',
       saving: '保存中…',
       saved: '已保存',
+      retry: '重试',
+      modelSettings: '模型与推理',
+      executionSettings: '执行设置',
+      timeoutRange: '请输入 1 到 2147000000 之间的整数。',
+      concurrencyRange: '请输入 1 到 128 之间的整数。',
+      modelUnavailable: '已保存的模型不在当前目录中，请重新选择。',
     }
     const EN_DICT = {
       tab: 'Mentor',
@@ -97,6 +103,12 @@ window.__ModuleLoader__.load({
       save: 'Save',
       saving: 'Saving…',
       saved: 'Saved',
+      retry: 'Retry',
+      modelSettings: 'Model and reasoning',
+      executionSettings: 'Execution',
+      timeoutRange: 'Enter a whole number from 1 to 2147000000.',
+      concurrencyRange: 'Enter a whole number from 1 to 128.',
+      modelUnavailable: 'The saved model is absent from the current catalog. Choose a model again.',
     }
 
     function record(value) {
@@ -134,7 +146,7 @@ window.__ModuleLoader__.load({
     }
 
     function installStyle() {
-      if (typeof document === 'undefined' || document.getElementById(STYLE_ID) !== null) return
+      if (typeof document === 'undefined') return
       const style = document.createElement('style')
       style.id = STYLE_ID
       style.dataset.plugin = '@dsh-plugins/mentor'
@@ -162,20 +174,39 @@ window.__ModuleLoader__.load({
 .mentor-history-evidence-content{margin:4px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;font:var(--dsw-font-xxs-12,12px/1.5 ui-monospace,monospace)}
 .mentor-history-skeleton{height:84px;border-bottom:1px solid var(--dsw-alias-border-l1,#e5e7eb);background:linear-gradient(90deg,transparent,var(--dsw-alias-bg-layer-2,#f3f4f6),transparent);background-size:200% 100%;animation:mentor-history-pulse 1.4s ease-in-out infinite}
 @keyframes mentor-history-pulse{to{background-position:-200% 0}}
-.mentor-config{display:flex;flex-direction:column;gap:12px;min-width:0;padding:2px 0 6px}
-.mentor-config-field{display:flex;flex-direction:column;gap:4px;min-width:0}
-.mentor-config-field label,.mentor-config-field>span{color:var(--dsw-alias-label-secondary,#4b5563);font-size:12px;font-weight:600}
-.mentor-config-field select,.mentor-config-field input{box-sizing:border-box;width:100%;min-height:34px;padding:6px 8px;border:1px solid var(--dsw-alias-border-l2,#d1d5db);border-radius:6px;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary,#171717);font:inherit}
-.mentor-config-field small{color:var(--dsw-alias-label-tertiary,#6b7280);font-size:11px;overflow-wrap:anywhere}
-.mentor-config-check{display:flex;align-items:center;gap:8px;min-width:0}
-.mentor-config-check input{min-height:0;width:auto}
+.mentor-config{box-sizing:border-box;display:flex;flex-direction:column;gap:20px;width:100%;max-width:820px;min-width:0;padding:2px 0 20px;color:var(--dsw-alias-label-primary);font:13px/1.5 system-ui,sans-serif;color-scheme:light dark}
+.mentor-config h2{margin:0;font-size:18px;line-height:24px;font-weight:650}
+.mentor-config h3{margin:0;font-size:14px;font-weight:600}
+.mentor-config p{margin:0;color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.mentor-config-card{display:flex;flex-direction:column;gap:16px;min-width:0;padding:16px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1)}
+.mentor-config-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:16px;min-width:0}
+.mentor-config-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.mentor-config-field>span{color:var(--dsw-alias-label-primary);font-size:12px;font-weight:600}
+.mentor-config-field select,.mentor-config-field input{box-sizing:border-box;width:100%;min-width:0;min-height:38px;padding:8px 10px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit}
+.mentor-config-field select{appearance:none;padding-right:30px;background-image:linear-gradient(45deg,transparent 50%,var(--dsw-alias-label-secondary) 50%),linear-gradient(135deg,var(--dsw-alias-label-secondary) 50%,transparent 50%);background-position:calc(100% - 15px) 16px,calc(100% - 11px) 16px;background-size:4px 4px;background-repeat:no-repeat}
+.mentor-config-field small,.mentor-config small{color:var(--dsw-alias-label-secondary);font-size:12px;line-height:18px;overflow-wrap:anywhere}
+.mentor-config-field [aria-invalid=true]{border-color:var(--dsw-alias-state-error-primary)}
+.mentor-config-field small.mentor-config-error{color:var(--dsw-alias-state-error-primary)}
+.mentor-config-check{display:flex;align-items:center;gap:12px;min-width:0;font-weight:600;cursor:pointer}
+.mentor-config-check input{appearance:none;box-sizing:border-box;position:relative;flex:none;width:36px;height:20px;margin:0;border:1px solid var(--dsw-alias-border-l2);border-radius:999px;background:var(--dsw-alias-bg-layer-2);cursor:pointer}
+.mentor-config-check input:before{content:'';position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:var(--dsw-alias-label-secondary);transition:transform .15s}
+.mentor-config-check input:checked{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary)}
+.mentor-config-check input:checked:before{transform:translateX(16px);background:var(--dsw-alias-bg-base)}
+.mentor-config input:focus-visible,.mentor-config select:focus-visible,.mentor-config button:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:2px}
 .mentor-config-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.mentor-config-actions button{min-height:32px;padding:6px 12px;border:1px solid var(--dsw-alias-border-l2,#d1d5db);border-radius:6px;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary,#171717);font:inherit;cursor:pointer}
-.mentor-config-actions button:disabled{cursor:default;opacity:.55}
+.mentor-config-actions button{min-height:38px;padding:8px 14px;border:1px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:inherit;font-weight:500;cursor:pointer}
+.mentor-config-actions button.primary{border-color:color-mix(in srgb,var(--dsw-alias-brand-primary) 45%,var(--dsw-alias-border-l1));background:color-mix(in srgb,var(--dsw-alias-brand-primary) 12%,var(--dsw-alias-bg-base));color:var(--dsw-alias-brand-primary)}
+.mentor-config-actions button:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2)}
+.mentor-config :disabled{cursor:default;opacity:.55}
+.mentor-config-notice{padding:10px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);overflow-wrap:anywhere}
+.mentor-config-notice.error{color:var(--dsw-alias-state-error-primary);border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 35%,var(--dsw-alias-border-l1))}
+.mentor-config-notice.success{color:var(--dsw-alias-state-success-primary);border-color:color-mix(in srgb,var(--dsw-alias-state-success-primary) 35%,var(--dsw-alias-border-l1))}
+@media(prefers-reduced-motion:reduce){.mentor-config-check input:before{transition:none}}
 @media (prefers-reduced-motion:reduce){.mentor-history-skeleton{animation:none;background:var(--dsw-alias-bg-layer-2,#f3f4f6)}}
 @media (max-width:640px){.mentor-history{padding:12px 12px 20px}.mentor-history-header{align-items:flex-start}}
       `
       document.head.appendChild(style)
+      return () => style.remove()
     }
 
     function createRpc(caller, sharedApi) {
@@ -240,7 +271,6 @@ window.__ModuleLoader__.load({
         }, [rpc, sessionId])
 
         React.useEffect(() => {
-          installStyle()
           refreshHistory()
           return () => {
             generation.current += 1
@@ -313,9 +343,16 @@ window.__ModuleLoader__.load({
       return function MentorSettingsCard(props) {
         const [state, setState] = React.useState({ loading: true, saving: false, data: null, draft: null, error: null, saved: false })
 
-        const load = React.useCallback(async () => {
-          setState((previous) => ({ ...previous, loading: true, error: null, saved: false }))
-          const result = await rpc.readSettings()
+        const fieldId = React.useId()
+        const [touched, setTouched] = React.useState({})
+        const controller = React.useRef(null)
+        const load = React.useCallback(async (explanation = null) => {
+          setState((previous) => ({ ...previous, loading: true, saving: false, error: null, saved: false }))
+          controller.current?.abort()
+          const next = new AbortController()
+          controller.current = next
+          const result = await rpc.readSettings(next.signal)
+          if (next.signal.aborted) return
           if (!result.ok) {
             setState((previous) => ({ ...previous, loading: false, error: 'settingsUnavailable' }))
             return
@@ -325,11 +362,13 @@ window.__ModuleLoader__.load({
             setState((previous) => ({ ...previous, loading: false, error: view?.kind === 'fault' && view.code === 'read_only' ? 'settingsReadOnly' : 'settingsUnavailable' }))
             return
           }
-          setState({ loading: false, saving: false, data: view, draft: draftFrom(view.values), error: null, saved: false })
+          setState({ loading: false, saving: false, data: view, draft: draftFrom(view.values), error: explanation, saved: false })
         }, [rpc])
 
-        React.useEffect(() => { installStyle() }, [])
-        React.useEffect(() => { load() }, [load])
+        React.useEffect(() => {
+          void load()
+          return () => controller.current?.abort()
+        }, [load])
 
         const draft = state.draft
         const data = state.data
@@ -339,7 +378,7 @@ window.__ModuleLoader__.load({
 
         const timeoutValue = draft === null ? NaN : Number(draft.requestTimeoutMs)
         const concurrencyValue = draft === null ? NaN : Number(draft.globalConcurrency)
-        const numbersValid = Number.isSafeInteger(timeoutValue) && timeoutValue > 0
+        const numbersValid = Number.isSafeInteger(timeoutValue) && timeoutValue > 0 && timeoutValue <= 2147000000
           && Number.isSafeInteger(concurrencyValue) && concurrencyValue > 0 && concurrencyValue <= 128
         const changed = draft !== null && data !== null
           && JSON.stringify(draft) !== JSON.stringify(draftFrom(data.values))
@@ -347,6 +386,7 @@ window.__ModuleLoader__.load({
         const save = async () => {
           if (draft === null || data === null) return
           if (!numbersValid) {
+            setTouched({ requestTimeoutMs: true, globalConcurrency: true })
             setState((previous) => ({ ...previous, error: 'invalidNumber', saved: false }))
             return
           }
@@ -360,15 +400,18 @@ window.__ModuleLoader__.load({
             globalConcurrency: concurrencyValue,
           }
           setState((previous) => ({ ...previous, saving: true, error: null, saved: false }))
-          const result = await rpc.saveSettings(payload, data.revision)
+          controller.current?.abort()
+          const next = new AbortController()
+          controller.current = next
+          const result = await rpc.saveSettings(payload, data.revision, next.signal)
+          if (next.signal.aborted) return
           const view = result.ok ? result.response.result : undefined
           if (view?.kind === 'settings') {
             setState({ loading: false, saving: false, data: view, draft: draftFrom(view.values), error: null, saved: true })
             return
           }
           if (view?.kind === 'fault' && view.code === 'conflict') {
-            setState((previous) => ({ ...previous, saving: false, error: 'settingsConflict', saved: false }))
-            load()
+            void load('settingsConflict')
             return
           }
           const error = view?.kind === 'fault' && view.code === 'read_only' ? 'settingsReadOnly'
@@ -383,7 +426,12 @@ window.__ModuleLoader__.load({
           return React.createElement('div', { className: 'mentor-history-notice', role: 'status' }, t('settingsLoading'))
         }
         if (state.error !== null && data === null) {
-          return React.createElement('div', { className: 'mentor-history-notice mentor-history-error', role: 'status' }, t(state.error))
+          return React.createElement('div', { className: 'mentor-config-card mentor-config-notice error', role: 'alert' },
+            React.createElement('div', null, t(state.error)),
+            React.createElement('div', { className: 'mentor-config-actions' },
+              React.createElement('button', { type: 'button', className: 'primary', onClick: () => { void load() } }, t('retry')),
+            ),
+          )
         }
         if (draft === null || data === null) {
           return React.createElement('div', { className: 'mentor-history-notice', role: 'status' }, t('settingsUnavailable'))
@@ -403,77 +451,88 @@ window.__ModuleLoader__.load({
         })))
         const disabled = state.saving || data.writable !== true
 
-        const numberField = (key, label, value, hint, max) => React.createElement('label', { className: 'mentor-config-field', key },
-          React.createElement('span', null, t(label)),
-          React.createElement('input', {
-            type: 'number',
-            min: 1,
-            max,
-            step: 1,
-            value,
-            disabled,
-            onChange: (event) => update(key, event.target.value),
-            'aria-label': t(label),
-          }),
-          hint === undefined ? null : React.createElement('small', null, t(hint)),
-        )
-
-        return React.createElement('div', { className: 'mentor-config' },
-          React.createElement('label', { className: 'mentor-config-check' },
+        const numberField = (key, label, value, hint, max) => {
+          const invalid = touched[key] && (!Number.isSafeInteger(Number(value)) || Number(value) < 1 || Number(value) > max)
+          const id = `${fieldId}-${key}`
+          return React.createElement('label', { className: 'mentor-config-field', key, htmlFor: id },
+            React.createElement('span', null, t(label)),
             React.createElement('input', {
-              type: 'checkbox',
-              checked: draft.enabled === true,
-              disabled,
-              onChange: (event) => update('enabled', event.target.checked),
-              'aria-label': t('enabled'),
+              id, type: 'number', min: 1, max, step: 1, value, disabled,
+              onChange: (event) => update(key, event.target.value),
+              onBlur: () => setTouched((previous) => ({ ...previous, [key]: true })),
+              'aria-invalid': Boolean(invalid),
+              'aria-describedby': [hint ? `${id}-hint` : null, invalid ? `${id}-error` : null].filter(Boolean).join(' ') || undefined,
             }),
-            React.createElement('span', null, t('enabled')),
-          ),
-          React.createElement('small', null, t('enabledHint')),
-          React.createElement('label', { className: 'mentor-config-field' },
-            React.createElement('span', null, t('model')),
-            React.createElement('select', {
-              value: draft.route,
-              disabled,
-              onChange: (event) => setState((previous) => previous.draft === null
-                ? previous
-                : { ...previous, saved: false, error: null, draft: { ...previous.draft, route: event.target.value, reasoningEffort: '' } }),
-              'aria-label': t('model'),
-            },
-              React.createElement('option', { value: '' }, t('profileModel', {
-                provider: catalog.default?.provider ?? '—',
-                model: catalog.default?.model ?? '—',
-              })),
-              models.map((entry) => React.createElement('option', {
-                value: routeKey(entry.provider, entry.model.id),
-                key: routeKey(entry.provider, entry.model.id),
-              }, `${entry.providerName} · ${entry.model.name || entry.model.id}`)),
+            hint === undefined ? null : React.createElement('small', { id: `${id}-hint` }, t(hint)),
+            invalid ? React.createElement('small', { className: 'mentor-config-error', id: `${id}-error` }, t(key === 'requestTimeoutMs' ? 'timeoutRange' : 'concurrencyRange')) : null,
+          )
+        }
+
+        return React.createElement('div', { className: 'mentor-config', role: 'region', 'aria-label': t('settingsTitle') },
+          React.createElement('div', { className: 'mentor-config-card' },
+            React.createElement('h2', null, t('settingsTitle')),
+            React.createElement('p', null, t('settingsSummary')),
+            React.createElement('label', { className: 'mentor-config-check' },
+              React.createElement('input', {
+                type: 'checkbox',
+                role: 'switch',
+                'aria-checked': draft.enabled === true,
+                checked: draft.enabled === true,
+                disabled,
+                onChange: (event) => update('enabled', event.target.checked),
+                'aria-label': t('enabled'),
+              }),
+              React.createElement('span', null, t('enabled')),
             ),
+            React.createElement('small', null, t('enabledHint')),
           ),
-          React.createElement('label', { className: 'mentor-config-field' },
-            React.createElement('span', null, t('reasoning')),
-            React.createElement('select', {
-              value: draft.reasoningEffort,
-              disabled: disabled || reasoningEfforts.length === 0,
-              onChange: (event) => update('reasoningEffort', event.target.value),
-              'aria-label': t('reasoning'),
-            },
-              React.createElement('option', { value: '' }, t('modelDefault')),
-              reasoningEfforts.map((effort) => React.createElement('option', { value: effort.id, key: effort.id }, effort.name || effort.id)),
+          React.createElement('div', { className: 'mentor-config-card' },
+            React.createElement('h3', null, t('modelSettings')),
+            React.createElement('div', { className: 'mentor-config-grid' },
+              React.createElement('label', { className: 'mentor-config-field' },
+                React.createElement('span', null, t('model')),
+                React.createElement('select', {
+                  value: draft.route,
+                  disabled,
+                  onChange: (event) => setState((previous) => previous.draft === null ? previous : { ...previous, saved: false, error: null, draft: { ...previous.draft, route: event.target.value, reasoningEffort: '' } }),
+                  'aria-label': t('model'),
+                },
+                  React.createElement('option', { value: '' }, t('profileModel', { provider: catalog.default?.provider ?? '—', model: catalog.default?.model ?? '—' })),
+                  draft.route !== '' && !models.some((entry) => routeKey(entry.provider, entry.model.id) === draft.route)
+                    ? React.createElement('option', { value: draft.route, disabled: true }, `${route?.provider ?? ''} / ${route?.model ?? ''}`) : null,
+                  models.map((entry) => React.createElement('option', { value: routeKey(entry.provider, entry.model.id), key: routeKey(entry.provider, entry.model.id) }, `${entry.providerName} · ${entry.model.name || entry.model.id}`)),
+                ),
+              ),
+              React.createElement('label', { className: 'mentor-config-field' },
+                React.createElement('span', null, t('reasoning')),
+                React.createElement('select', {
+                  value: draft.reasoningEffort,
+                  disabled: disabled || reasoningEfforts.length === 0,
+                  onChange: (event) => update('reasoningEffort', event.target.value),
+                  'aria-label': t('reasoning'),
+                },
+                  React.createElement('option', { value: '' }, t('modelDefault')),
+                  reasoningEfforts.map((effort) => React.createElement('option', { value: effort.id, key: effort.id }, effort.name || effort.id)),
+                ),
+              ),
             ),
+            draft.route !== '' && !models.some((entry) => routeKey(entry.provider, entry.model.id) === draft.route)
+              ? React.createElement('div', { className: 'mentor-config-notice error', role: 'alert' }, t('modelUnavailable')) : null,
+            React.createElement('p', null, t('serviceTier')),
           ),
-          React.createElement('div', { className: 'mentor-history-notice' }, t('serviceTier')),
-          numberField('requestTimeoutMs', 'timeout', draft.requestTimeoutMs, undefined, 2147000000),
-          numberField('globalConcurrency', 'concurrency', draft.globalConcurrency, 'concurrencyHint', 128),
-          React.createElement('div', { className: 'mentor-history-notice' }, t('metricsNotice')),
-          state.saved ? React.createElement('div', { className: 'mentor-history-notice', role: 'status' }, t('saved')) : null,
-          state.error !== null ? React.createElement('div', { className: 'mentor-history-notice mentor-history-error', role: 'status' }, t(state.error)) : null,
+          React.createElement('div', { className: 'mentor-config-card' },
+            React.createElement('h3', null, t('executionSettings')),
+            React.createElement('div', { className: 'mentor-config-grid' },
+              numberField('requestTimeoutMs', 'timeout', draft.requestTimeoutMs, undefined, 2147000000),
+              numberField('globalConcurrency', 'concurrency', draft.globalConcurrency, 'concurrencyHint', 128),
+            ),
+            React.createElement('p', null, t('metricsNotice')),
+          ),
+          data.writable !== true ? React.createElement('div', { className: 'mentor-config-notice', role: 'status' }, t('settingsReadOnly')) : null,
+          state.saved ? React.createElement('div', { className: 'mentor-config-notice success', role: 'status', 'aria-live': 'polite' }, t('saved')) : null,
+          state.error !== null ? React.createElement('div', { className: 'mentor-config-notice error', role: 'alert', 'aria-live': 'assertive' }, t(state.error)) : null,
           React.createElement('div', { className: 'mentor-config-actions' },
-            React.createElement('button', {
-              type: 'button',
-              disabled: disabled || !changed || !numbersValid,
-              onClick: () => { void save() },
-            }, state.saving ? t('saving') : t('save')),
+            React.createElement('button', { type: 'button', className: 'primary', disabled: disabled || !changed, onClick: () => { void save() } }, state.saving ? t('saving') : t('save')),
           ),
         )
       }
@@ -523,9 +582,7 @@ window.__ModuleLoader__.load({
         )), 'mentor settings tab')
       }
 
-      ctx.effect(() => () => {
-        if (typeof document !== 'undefined') document.getElementById(STYLE_ID)?.remove()
-      }, 'mentor stylesheet')
+      ctx.effect(installStyle, 'mentor stylesheet')
     }
 
     exports.inject = ['connection', 'locale', 'slots']

@@ -67,6 +67,13 @@ export const Config = z.object({
   allowedHosts: z.array(z.string()).default([]).volatile(),
   /** Extra browser Origins accepted by the fence. */
   allowedOrigins: z.array(z.string()).default([]).volatile(),
+  /**
+   * Peer addresses whose `X-Forwarded-For` / `X-Forwarded-Proto` headers are
+   * believed. Set this to the reverse proxy's address when a TLS-terminating
+   * proxy sits in front: without it every proxied visitor shares one rate-limit
+   * bucket, and the session cookie loses its `Secure` attribute.
+   */
+  trustedProxyAddresses: z.array(z.string()).default([]).volatile(),
   /** Absolute browser session lifetime. */
   sessionMaxAgeSeconds: z.natural().min(300).max(30 * 24 * 3600).default(24 * 3600).volatile(),
   /** Idle timeout; a session unused for this long stops validating. */

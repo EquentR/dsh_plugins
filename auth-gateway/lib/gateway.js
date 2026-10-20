@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Auth gateway: an authenticating reverse proxy in front of the stock DSH web
  * server.
  *
@@ -92,7 +92,7 @@ const PASSWORD_MIN_LENGTH = 8
  * `connect-src 'self'` is required, not optional: the login page submits its
  * credentials with `fetch` (so the page can show an inline error instead of
  * navigating away). With `default-src 'none'` and no `connect-src`, the browser
- * blocks that very request — the page renders but sign-in can never complete:
+ * blocks that very request 鈥?the page renders but sign-in can never complete:
  *
  *   Connecting to '.../api/auth.login' violates the following Content Security
  *   Policy directive: "default-src 'none'". Note that 'connect-src' was not
@@ -177,10 +177,53 @@ function parseCookies(req) {
   return out
 }
 
-function clientAddress(req) {
+/** Normalized peer address of one connection. */
+function socketAddress(req) {
   const raw = req.socket?.remoteAddress ?? ''
   if (raw.startsWith('::ffff:')) return raw.slice(7)
   return raw
+}
+
+/**
+ * The real client address for one request.
+ *
+ * Only a configured trusted proxy may assert `X-Forwarded-For`; for anyone else
+ * the socket peer is the client. Believing the header from an untrusted source
+ * would let any caller forge its own rate-limit bucket (or dodge the limiter by
+ * rotating the value).
+ *
+ * The left-most entry is the origin client, which is what the proxy recorded.
+ * @param req - incoming request.
+ * @param trustedProxies - peer addresses allowed to assert forwarding headers.
+ */
+function clientAddress(req, trustedProxies = new Set()) {
+  const peer = socketAddress(req)
+  if (trustedProxies.has(peer)) {
+    const forwarded = req.headers['x-forwarded-for']
+    const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded
+    if (typeof raw === 'string' && raw.trim() !== '') {
+      const first = raw.split(',')[0]?.trim() ?? ''
+      // Reject anything that is not a plausible address literal.
+      if (/^[0-9a-fA-F.:]+$/u.test(first) && first !== '') return first
+    }
+  }
+  return peer
+}
+
+/**
+ * Whether this request arrived over HTTPS, as far as authentication policy cares.
+ *
+ * A trusted proxy's `X-Forwarded-Proto: https` is honoured because the plain
+ * HTTP hop between proxy and gateway is not itself insecure: TLS terminated at
+ * the proxy. Without trusting it, every public request would look like plain
+ * HTTP and the session cookie would lose its `Secure` attribute.
+ */
+function isSecureRequest(req, trustedProxies = new Set()) {
+  if (req.socket?.encrypted === true) return true
+  if (!trustedProxies.has(socketAddress(req))) return false
+  const proto = req.headers['x-forwarded-proto']
+  const raw = Array.isArray(proto) ? proto[0] : proto
+  return typeof raw === 'string' && raw.split(',')[0]?.trim().toLowerCase() === 'https'
 }
 
 function rejectUpgrade(socket, status, message) {
@@ -221,7 +264,7 @@ function safeEqual(left, right) {
  * loopback, when it names one of the addresses this gateway actually bound, or
  * when it matches a configured `allowedHosts` entry. Requiring an explicit
  * entry for the common case would 421 every request out of the box, so the bind
- * authority is accepted inherently — it is not a DNS-rebinding target.
+ * authority is accepted inherently 鈥?it is not a DNS-rebinding target.
  *
  * @returns `{ kind: 'host' }` for a rejected Host, `{ kind: 'origin' }` for a
  * rejected Origin, else `{ kind: 'allow' }`.
@@ -294,9 +337,32 @@ export function createGateway(ctx, config, deps = {}) {
     ...(deps.policy ?? {}),
   }
 
-  const secure = config.tls === true
-  const sessionCookieName = secure ? SECURE_SESSION_COOKIE : SESSION_COOKIE
-  const csrfCookieName = secure ? SECURE_CSRF_COOKIE : CSRF_COOKIE
+  // `secure` is per-request, not per-process: behind a TLS-terminating proxy the
+  // listener speaks plain HTTP yet the browser is on HTTPS. See isSecureRequest.
+  const listenerSecure = config.tls === true
+
+  /**
+   * Cookie names and the `Secure` attribute for one request.
+   *
+   * A `__Host-` cookie is only valid over HTTPS, so the name must track the
+   * effective scheme or the browser silently drops it.
+   */
+  function cookiePolicy(req) {
+    const secure = listenerSecure || isSecureRequest(req, trustedProxies)
+    return {
+      secure,
+      session: secure ? SECURE_SESSION_COOKIE : SESSION_COOKIE,
+      csrf: secure ? SECURE_CSRF_COOKIE : CSRF_COOKIE,
+    }
+  }
+
+  /** Peer addresses allowed to assert X-Forwarded-* headers. */
+  const trustedProxies = new Set(
+    (Array.isArray(config.trustedProxyAddresses) ? config.trustedProxyAddresses : [])
+      .filter((entry) => typeof entry === 'string')
+      .map((entry) => entry.trim().replace(/^\[|\]$/g, ''))
+      .filter((entry) => entry !== ''),
+  )
 
   const allowedHosts = (Array.isArray(config.allowedHosts) ? config.allowedHosts : [])
     .map((value, index) => policy.parseAllowedHost(value, index))
@@ -374,24 +440,26 @@ export function createGateway(ctx, config, deps = {}) {
 
   function issueSession(req, res) {
     const epoch = credentials().authEpoch
+    const policy = cookiePolicy(req)
     const record = sessions.create(
       String(req.headers['user-agent'] ?? ''),
-      clientAddress(req),
+      clientAddress(req, trustedProxies),
       epoch,
     )
     const signature = signValue(secret, record.id)
     const maxAge = config.sessionMaxAgeSeconds
     const cookies = [
-      `${sessionCookieName}=${record.id}.${signature}; Max-Age=${String(maxAge)}; Path=/; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`,
-      `${csrfCookieName}=${record.csrf}; Max-Age=${String(maxAge)}; Path=/; SameSite=Strict${secure ? '; Secure' : ''}`,
+      `${policy.session}=${record.id}.${signature}; Max-Age=${String(maxAge)}; Path=/; HttpOnly; SameSite=Strict${policy.secure ? '; Secure' : ''}`,
+      `${policy.csrf}=${record.csrf}; Max-Age=${String(maxAge)}; Path=/; SameSite=Strict${policy.secure ? '; Secure' : ''}`,
     ]
     return { record, cookies }
   }
 
   /** Resolve the browser session, or undefined when unauthenticated. */
   function authenticate(req) {
+    const policy = cookiePolicy(req)
     const cookies = parseCookies(req)
-    const raw = cookies.get(sessionCookieName)
+    const raw = cookies.get(policy.session)
     if (typeof raw !== 'string' || raw === '') return undefined
     const dot = raw.lastIndexOf('.')
     if (dot <= 0) return undefined
@@ -401,7 +469,7 @@ export function createGateway(ctx, config, deps = {}) {
     const current = credentials()
     if (!sessions.verify(id, current.authEpoch)) return undefined
     sessions.touch(id)
-    return { id, csrf: cookies.get(csrfCookieName) }
+    return { id, csrf: cookies.get(policy.csrf) }
   }
 
   /** Write operations must present the CSRF value bound to the session. */
@@ -413,10 +481,11 @@ export function createGateway(ctx, config, deps = {}) {
     return safeEqual(presented, auth.csrf)
   }
 
-  function clearCookies() {
+  function clearCookies(req) {
+    const policy = cookiePolicy(req)
     const parts = [
-      `${sessionCookieName}=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`,
-      `${csrfCookieName}=; Max-Age=0; Path=/; SameSite=Strict${secure ? '; Secure' : ''}`,
+      `${policy.session}=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict${policy.secure ? '; Secure' : ''}`,
+      `${policy.csrf}=; Max-Age=0; Path=/; SameSite=Strict${policy.secure ? '; Secure' : ''}`,
     ]
     return parts
   }
@@ -449,7 +518,7 @@ export function createGateway(ctx, config, deps = {}) {
   /* ---------------------------- routes ---------------------------- */
 
   async function handleLogin(req, res) {
-    if (!rateLimit(clientAddress(req))) {
+    if (!rateLimit(clientAddress(req, trustedProxies))) {
       sendJson(res, 429, { ok: false, error: 'too_many_attempts' })
       return
     }
@@ -497,7 +566,7 @@ export function createGateway(ctx, config, deps = {}) {
       return
     }
     sessions.revoke(auth.id)
-    sendJson(res, 200, { ok: true }, { 'set-cookie': clearCookies() })
+    sendJson(res, 200, { ok: true }, { 'set-cookie': clearCookies(req) })
   }
 
   async function handleChangePassword(req, res) {
@@ -540,7 +609,7 @@ export function createGateway(ctx, config, deps = {}) {
     sessions.revokeAll()
     sessions.persist()
     logger.info?.('auth-gateway: password changed; all sessions revoked')
-    sendJson(res, 200, { ok: true, reauthenticate: true }, { 'set-cookie': clearCookies() })
+    sendJson(res, 200, { ok: true, reauthenticate: true }, { 'set-cookie': clearCookies(req) })
   }
 
   async function handleTotp(req, res) {
@@ -642,17 +711,17 @@ export function createGateway(ctx, config, deps = {}) {
     const headers = cleanForwardedHeaders(req.headers)
     if (headers.cookie !== undefined) {
       // Drop both families: the browser's core cookies (which belong to the
-      // browser↔core hop only) and our own, which the upstream must never see.
+      // browser鈫攃ore hop only) and our own, which the upstream must never see.
       headers.cookie = stripGatewayCookies(
         stripCoreCookies(headers.cookie),
-        [sessionCookieName, csrfCookieName],
+        [SESSION_COOKIE, CSRF_COOKIE, SECURE_SESSION_COOKIE, SECURE_CSRF_COOKIE],
       )
       if (headers.cookie === undefined) delete headers.cookie
     }
     headers.cookie = attachCoreCookie(headers.cookie, core)
     headers.host = coreTarget.authority
     if (headers.origin !== undefined) headers.origin = coreTarget.origin
-    headers['x-forwarded-for'] = clientAddress(req)
+    headers['x-forwarded-for'] = clientAddress(req, trustedProxies)
 
     const upstream = httpRequest({
       hostname: coreTarget.hostname,
@@ -694,14 +763,14 @@ export function createGateway(ctx, config, deps = {}) {
     if (headers.cookie !== undefined) {
       headers.cookie = stripGatewayCookies(
         stripCoreCookies(headers.cookie),
-        [sessionCookieName, csrfCookieName],
+        [SESSION_COOKIE, CSRF_COOKIE, SECURE_SESSION_COOKIE, SECURE_CSRF_COOKIE],
       )
       if (headers.cookie === undefined) delete headers.cookie
     }
     headers.cookie = attachCoreCookie(headers.cookie, core)
     headers.host = coreTarget.authority
     if (headers.origin !== undefined) headers.origin = coreTarget.origin
-    headers['x-forwarded-for'] = clientAddress(req)
+    headers['x-forwarded-for'] = clientAddress(req, trustedProxies)
     headers.connection = 'Upgrade'
     headers.upgrade = 'websocket'
 
@@ -771,7 +840,7 @@ export function createGateway(ctx, config, deps = {}) {
       sendJson(res, 503, { ok: false, error: 'shutting_down' })
       return
     }
-    const decision = fenceDecision(req.headers, allowedHosts, allowedOrigins, secure, boundAddresses)
+    const decision = fenceDecision(req.headers, allowedHosts, allowedOrigins, cookiePolicy(req).secure, boundAddresses)
     if (decision.kind === 'host') {
       // 421: this listener is not authoritative for the requested Host. This is
       // the DNS-rebinding defence and must run before anything else.
@@ -805,7 +874,7 @@ export function createGateway(ctx, config, deps = {}) {
       rejectUpgrade(socket, 503, 'Service Unavailable')
       return
     }
-    const decision = fenceDecision(req.headers, allowedHosts, allowedOrigins, secure, boundAddresses)
+    const decision = fenceDecision(req.headers, allowedHosts, allowedOrigins, cookiePolicy(req).secure, boundAddresses)
     if (decision.kind === 'host') {
       rejectUpgrade(socket, 421, 'Misdirected Request')
       return

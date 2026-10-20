@@ -14,6 +14,7 @@
 | [`delete-session`](./delete-session) | 可用 | 持久包 | 带确认的会话永久删除，级联删除子会话记录 |
 | [`mentor`](./mentor) | 可用（默认关闭） | 持久包 | 无工具的「纯对话」导师咨询，会话级标签页 + 全局设置 |
 | [`network-proxy`](./network-proxy) | 可用 | 持久包 | Host 出站请求的 HTTP/SOCKS5 代理设置页，HTTP 模式支持鉴权 |
+| [`auth-gateway`](./auth-gateway) | 可用（默认关闭） | 持久包 | 带账号鉴权的反向代理端口：登录页、会话认证、改密码、TOTP、按设备撤销；兼容 dsh 0.2.0/0.2.1 与 Windows/Linux |
 | [`obedient-preset`](./obedient-preset) | 可用 | Agent 预设包 | 内置「标准模式」去掉 `workflow` 工具，作为「听话模式」加入模式选择器 |
 | [`model-capabilities`](./model-capabilities) | **已弃用** | 动态函数体 | 原为第三方模型补推理等级与图片能力设置；新版 DSH 已内置，不再维护 |
 
@@ -39,6 +40,17 @@ monaco 与 markdown-it 由本包自己提供，不依赖 CDN。详见 [`git-grap
 用户名/密码鉴权，SOCKS5 不提供鉴权。本机地址始终直连，并支持自定义绕过列表。它只作用于 Host
 进程的 `fetch`/undici dispatcher，**不配置桌面端 Chromium 自身的流量**。详见
 [`network-proxy/README.md`](./network-proxy/README.md)。
+
+### `auth-gateway`
+
+在 dsh 前面加一个**带账号鉴权的反向代理端口**：登录页、会话认证、改密码、TOTP 两步验证，以及
+按设备撤销会话。dsh 核心 Web 服务仍只监听 loopback，不做改动。它补的是 dsh 的真实缺口——当前
+所有通过认证的连接都映射到同一个 `owner`，没有账号、没有登出、没有撤销、没有审计。
+
+同一份代码同时支持 dsh `0.2.0-rc.2`（npm）与 `0.2.1-rc.2`（桌面版），以及 Windows/Linux：
+关键是它**不依赖 dsh 的 `settings` 服务**（`register()` 已被上游移除且两版形状不一致），
+静态策略走 Loader row `Config`，可变账号状态走自管文件。Windows 上也不使用 POSIX 权限位断言
+（同类旧插件因此在 Windows 上"只能启动一次"）。详见 [`auth-gateway/README.md`](./auth-gateway/README.md)。
 
 ### `obedient-preset`
 

@@ -29,3 +29,11 @@ Thumbs.db
 # pnpm policy (minimumReleaseAge exclusions). It describes the local install,
 # never the plugin, so it is not part of the repository.
 git-graph/pnpm-workspace.yaml
+
+# Research forensics: archived third-party sources, extracted installs and test
+# certificates gathered during investigation. They are not project sources and
+# may embed real credentials (gateway passwords, registry auth, SSH logins) or
+# private keys, so they must never be committed. Reports stay in docs/research/*.md.
+docs/research/_artifacts/
+*.pem
+*.key

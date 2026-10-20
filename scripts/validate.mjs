@@ -28,7 +28,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
-const BUNDLES = ['git-graph', 'delete-session', 'mentor', 'network-proxy']
+const BUNDLES = ['git-graph', 'delete-session', 'mentor', 'network-proxy', 'auth-gateway']
 const PRESETS = ['obedient-preset']
 const FUNCTION_BODIES = ['model-capabilities']
 const AGENT_PRESET_PLUGIN = '@deepseek-ai/dsh-agent-preset'

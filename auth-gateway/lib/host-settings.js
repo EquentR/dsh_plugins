@@ -75,6 +75,23 @@ export function isEncoded(headers) {
 }
 
 /**
+ * Whether this request is a document navigation whose body we intend to splice.
+ *
+ * Only such a request is asked for an uncompressed body. A browser always sends
+ * `Accept-Encoding`, and the core answers with gzip, so without this the rewrite
+ * was skipped for every real browser while a plain `curl` looked fine.
+ *
+ * @param req - the inbound request.
+ * @returns true for a GET navigation that negotiates HTML.
+ */
+export function wantsDocument(req) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return false
+  const accept = req.headers.accept
+  const value = Array.isArray(accept) ? accept[0] : accept
+  return typeof value === 'string' && value.toLowerCase().includes('text/html')
+}
+
+/**
  * Insert the carrier script at the very start of `<head>`.
  *
  * Placing it first guarantees it runs before the module loader and before the

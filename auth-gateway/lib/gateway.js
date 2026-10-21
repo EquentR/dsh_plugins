@@ -49,7 +49,7 @@ import {
 } from './credentials.js'
 import { SessionStore } from './sessions.js'
 import { renderLoginPage, selectLoginLocale, loginErrorMessage } from './login-page.js'
-import { isEncoded, isHtmlDocument, planHtmlRewrite } from './host-settings.js'
+import { isEncoded, isHtmlDocument, planHtmlRewrite, wantsDocument } from './host-settings.js'
 import {
   attachCoreCookie,
   createCoreSessionBridge,
@@ -723,6 +723,15 @@ export function createGateway(ctx, config, deps = {}) {
     headers.host = coreTarget.authority
     if (headers.origin !== undefined) headers.origin = coreTarget.origin
     headers['x-forwarded-for'] = clientAddress(req, trustedProxies)
+
+    // The document is spliced below, and a compressed body cannot be spliced
+    // without inflating it first. Ask the upstream for an uncompressed document
+    // on navigations only: a real browser always sends Accept-Encoding, so
+    // leaving that header in place meant the injection silently never applied to
+    // any actual browser while `curl` appeared to work.
+    if (config.allowRemoteSettings === true && wantsDocument(req)) {
+      headers['accept-encoding'] = 'identity'
+    }
 
     const upstream = httpRequest({
       hostname: coreTarget.hostname,

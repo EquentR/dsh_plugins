@@ -24,6 +24,7 @@ const {
   isEncoded,
   isHtmlDocument,
   planHtmlRewrite,
+  wantsDocument,
 } = await import('../lib/host-settings.js')
 
 /** Evaluate the injected script in an isolated fake global. */
@@ -161,5 +162,26 @@ describe('planHtmlRewrite', () => {
       enabled: true,
     })
     assert.equal(plan.rewrite, false)
+  })
+})
+
+describe('compression handling', () => {
+  it('recognises a document navigation', () => {
+    assert.equal(wantsDocument({ method: 'GET', headers: { accept: 'text/html,application/xhtml+xml' } }), true)
+    assert.equal(wantsDocument({ method: 'GET', headers: { accept: ['text/html'] } }), true)
+  })
+
+  it('does not treat asset or API requests as documents', () => {
+    assert.equal(wantsDocument({ method: 'GET', headers: { accept: 'application/json' } }), false)
+    assert.equal(wantsDocument({ method: 'GET', headers: { accept: '*/*' } }), false)
+    assert.equal(wantsDocument({ method: 'POST', headers: { accept: 'text/html' } }), false)
+    assert.equal(wantsDocument({ method: 'GET', headers: {} }), false)
+  })
+
+  it('documents why the upstream is asked for identity encoding', () => {
+    // A browser sends Accept-Encoding, the core answers gzip, and splicing is
+    // skipped -- so the navigation must also be identified to force identity.
+    assert.equal(isEncoded({ 'content-encoding': 'gzip' }), true)
+    assert.equal(wantsDocument({ method: 'GET', headers: { accept: 'text/html' } }), true)
   })
 })

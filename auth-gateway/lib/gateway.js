@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Auth gateway: an authenticating reverse proxy in front of the stock DSH web
  * server.
  *
@@ -49,6 +49,7 @@ import {
 } from './credentials.js'
 import { SessionStore } from './sessions.js'
 import { renderLoginPage, selectLoginLocale, loginErrorMessage } from './login-page.js'
+import { isEncoded, isHtmlDocument, planHtmlRewrite } from './host-settings.js'
 import {
   attachCoreCookie,
   createCoreSessionBridge,
@@ -732,8 +733,47 @@ export function createGateway(ctx, config, deps = {}) {
     }, (upstreamRes) => {
       if (upstreamRes.statusCode === 401) coreSession.invalidate()
       const responseHeaders = stripCoreSetCookies({ ...upstreamRes.headers })
-      res.writeHead(upstreamRes.statusCode ?? 502, responseHeaders)
-      upstreamRes.pipe(res)
+
+      // Remote host-settings access: rewrite the HTML document so the client
+      // treats this authenticated page as the Host's own carrier, matching the
+      // desktop shell. Only the document is touched; assets, JSON and plugin
+      // bundles stream through untouched.
+      const rewrite = config.allowRemoteSettings === true
+        && upstreamRes.statusCode === 200
+        && isHtmlDocument(responseHeaders)
+        && !isEncoded(responseHeaders)
+
+      if (!rewrite) {
+        res.writeHead(upstreamRes.statusCode ?? 502, responseHeaders)
+        upstreamRes.pipe(res)
+        return
+      }
+
+      const chunks = []
+      upstreamRes.on('data', (chunk) => chunks.push(chunk))
+      upstreamRes.on('end', () => {
+        let body
+        try {
+          body = Buffer.concat(chunks).toString('utf8')
+        } catch {
+          body = undefined
+        }
+        const plan = planHtmlRewrite({
+          statusCode: upstreamRes.statusCode,
+          headers: responseHeaders,
+          body,
+          enabled: true,
+        })
+        const finalBody = plan.rewrite ? Buffer.from(plan.body, 'utf8') : Buffer.concat(chunks)
+        delete responseHeaders['content-length']
+        responseHeaders['content-length'] = String(finalBody.byteLength)
+        res.writeHead(upstreamRes.statusCode ?? 502, responseHeaders)
+        res.end(finalBody)
+      })
+      upstreamRes.on('error', () => {
+        if (!res.headersSent) sendJson(res, 502, { ok: false, error: 'upstream_unreachable' })
+        else res.destroy()
+      })
     })
     upstream.setTimeout(config.upstreamTimeoutMs, () => {
       upstream.destroy(new Error('upstream request timed out'))

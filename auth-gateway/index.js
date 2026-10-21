@@ -74,6 +74,21 @@ export const Config = z.object({
    * bucket, and the session cookie loses its `Secure` attribute.
    */
   trustedProxyAddresses: z.array(z.string()).default([]).volatile(),
+  /**
+   * Give an authenticated remote browser the same Host-settings access a local
+   * one has.
+   *
+   * Upstream deliberately disables durable settings for non-loopback pages, so
+   * the Models page fails with "settings are unavailable in this browser" when
+   * the gateway is reached over the LAN. Those pages have already passed account
+   * authentication here, so they are entitled to the same access; this rewrites
+   * the served document to mark the page as the Host's own carrier.
+   *
+   * SECURITY: with this on, anyone who can sign in at the gateway can read and
+   * write the whole Host settings document, including provider API keys. Keep it
+   * on only when the gateway itself is the trust boundary.
+   */
+  allowRemoteSettings: z.boolean().default(true).volatile(),
   /** Absolute browser session lifetime. */
   sessionMaxAgeSeconds: z.natural().min(300).max(30 * 24 * 3600).default(24 * 3600).volatile(),
   /** Idle timeout; a session unused for this long stops validating. */

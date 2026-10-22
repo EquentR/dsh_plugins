@@ -89,6 +89,24 @@ export const Config = z.object({
    * on only when the gateway itself is the trust boundary.
    */
   allowRemoteSettings: z.boolean().default(true).volatile(),
+  /**
+   * Give remote browsers an in-page directory picker instead of the Host's OS
+   * dialog.
+   *
+   * The Host resolves its directory interaction once at boot, and a desktop Host
+   * bound to loopback resolves `native`; its Windows backend opens an
+   * `IFileOpenDialog` on the Host machine. A browser that reached the Host
+   * through this gateway has no desktop preload, so clicking "add workspace"
+   * would pop that dialog on a screen nobody is watching. With this on, the
+   * authenticated document receives a carrier picker the page runs itself. The
+   * desktop window keeps its Electron dialog because it never passes through
+   * this gateway.
+   *
+   * SECURITY: the picker's listing/creation routes run with this gateway's
+   * owner-level authority — the same authority the proxied Workspace UI already
+   * has. Creating a folder additionally requires the session's CSRF value.
+   */
+  remoteDirectoryPicker: z.boolean().default(true).volatile(),
   /** Absolute browser session lifetime. */
   sessionMaxAgeSeconds: z.natural().min(300).max(30 * 24 * 3600).default(24 * 3600).volatile(),
   /** Idle timeout; a session unused for this long stops validating. */

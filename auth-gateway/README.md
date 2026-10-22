@@ -116,6 +116,7 @@ node scripts/validate.mjs      # 先校验
 | `realm` | `DeepSeek Harness Authentication` | 登录页显示的域名。 |
 | `allowedHosts` | `[]` | 额外接受的 Host authority（裸 `host` 或 `host:port`）。 |
 | `allowedOrigins` | `[]` | 额外接受的浏览器 Origin。 |
+| `remoteDirectoryPicker` | `true` | 给经网关访问的浏览器注入页面内目录选择器（见下文）。 |
 | `sessionMaxAgeSeconds` | `86400` | 会话绝对有效期。 |
 | `sessionIdleTimeoutSeconds` | `43200` | 空闲超时。 |
 | `upstreamTimeoutMs` | `30000` | 上游连接与握手超时。 |
@@ -135,6 +136,44 @@ node scripts/validate.mjs      # 先校验
 
 原因：网关按**请求的 Host** 做栅栏判定并绑定会话；改写 Host 会导致后续请求对不上。
 
+## 远程浏览器的目录选择（页面内选择器）
+
+### 问题
+
+dsh 的目录选择器由 `dsh-host-directory-picker-auto` 在**启动时一次性**判定：桌面平台
+（Windows/macOS）+ 仅回环绑定 + 没有远程 authority 信任 → `native`。Windows 上 native 后端会在
+**宿主机器**上 spawn 子进程弹 `IFileOpenDialog`。
+
+桌面窗口本身没问题：它的 preload 提供 `__DSH_DIRECTORY_PICKER__`，走 Electron 对话框。但经本网关
+访问的浏览器没有 preload，同一个 native 表面会退回 Host RPC，于是点「添加工作区」时对话框弹在
+**宿主屏幕上**——操作者在自己浏览器里看不到任何反应。
+
+参考部署（npm 版 `.107`）是在 profile 里直接 pin 了 browse 选择器；桌面 profile 不能照抄，因为桌面
+窗口与远程浏览器共用同一张客户端模块表，pin browse 会连桌面窗口的原生对话框一起换掉。
+
+### 解决
+
+网关是远程浏览器的载体，所以由网关补齐这个载体事实：已认证的文档会在 `<head>` 起始处注入一段
+脚本，定义 `__DSH_DIRECTORY_PICKER__ = { pick() }`（**仅在页面尚无该全局时**，不覆盖桌面 preload）。
+`pick()` 打开页面内的目录浏览器，通过网关自己的两个受权路由列目录/建目录：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/_dsh/auth-gateway/fs/list?path=` | 列一级子目录（需网关会话） |
+| POST | `/_dsh/auth-gateway/fs/mkdir` | `{path, name}` 建目录（需网关会话 + CSRF） |
+
+于是：远程浏览器 = 页面内选择器（与 npm 版观感一致）；桌面窗口 = 仍然走 Electron 原生对话框。
+不需要改上游、不需要改 profile。`remoteDirectoryPicker: false` 可关闭注入，回到宿主原生行为。
+
+### 安全与限制
+
+- 这两个路由的权限等于反代页面本身：网关把宿主 core cookie 交给该页面，Workspace UI 本来就能
+  读写宿主文件。`mkdir` 额外要求会话 CSRF；Host/Origin 栅栏与认证顺序不变。
+- 路径必须是完全限定路径；文件夹名必须是单个路径段；单层最多列 1000 条。
+- 该注入覆盖 `ui-workspace` 的目录流程 slot（「添加工作区」等处）。若上游新增了**绕过 slot、
+  直接调用** Host `directoryPicker.pick` 的入口，那些入口仍会弹宿主原生对话框。
+
+
 ## 路由
 
 | 方法 | 路径 | 说明 |
@@ -143,9 +182,10 @@ node scripts/validate.mjs      # 先校验
 | POST | `/api/auth.login` | `{username, password, totp?}` |
 | POST | `/api/auth.logout` | 撤销当前会话（需 CSRF） |
 | POST | `/api/auth.change-password` | `{currentPassword, newPassword, totp?, csrf}` |
-| GET | `/api/auth.status` | 会话状态；已认证时附带 CSRF 值 |
 | POST | `/api/auth.totp` | `{action: 'begin'\|'enable'\|'disable', ...}` |
 | GET | `/_dsh/auth-gateway/state` | 设置页读取状态 |
+| GET | `/_dsh/auth-gateway/fs/list?path=` | 页面内目录选择器：列子目录（需会话） |
+| POST | `/_dsh/auth-gateway/fs/mkdir` | 页面内目录选择器：建目录（需会话 + CSRF） |
 | 其余 | `/*` | 已认证则反代；否则 401 或登录页 |
 
 **栅栏顺序不可颠倒**：① Host（不匹配 → **421**）→ ② Origin（不匹配 → **403**）→ ③ 认证

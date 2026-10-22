@@ -9,7 +9,8 @@
 ## 0. 目标与范围
 
 - **范围（已与用户确认）**：登录页、会话认证、账号密码修改、TOTP 两步验证、
-  Host/Origin 双栅栏（421）、HTTP + WebSocket 反向代理、密钥文件安全。
+  Host/Origin 双栅栏（421）、HTTP + WebSocket 反向代理、密钥文件安全、
+  远程浏览器的页面内目录选择器（见 3.12）。
 - **不做**：WebAuthn/passkey、PWA、移动端抽屉布局。
 - **版本自适应**：同一份代码同时支持 dsh `0.2.0-rc.2`（npm 版）与 `0.2.1-rc.2`（桌面版），
   以及 Windows / Linux。
@@ -54,6 +55,7 @@ auth-gateway/
     core-session.js   借用 core `connection.authenticatedUrl()` 兑换并持有 core cookie
     gateway.js        HTTP + WS 鉴权反代主体
     version.js        版本探测与自适应（0.2.0 / 0.2.1 行为差异集中于此）
+    carrier-picker.js 远程浏览器的页面内目录选择器（注入脚本 + 受权 FS 原语）
 ```
 
 ## 3. 模块接口（必须严格遵守）
@@ -227,6 +229,8 @@ export function createGateway(ctx, config, deps): {
 | GET | `/api/auth.status` | `{authenticated, username, twoFactorEnabled, authEpoch}` |
 | POST | `/api/auth.totp` | `{action:'enable'\|'disable'\|'verify', secret?, code?}` |
 | GET | `/_dsh/auth-gateway/state` | 供设置页读取状态 |
+| GET | `/_dsh/auth-gateway/fs/list?path=` | 页面内目录选择器：列一级子目录（需会话） |
+| POST | `/_dsh/auth-gateway/fs/mkdir` | 页面内目录选择器：`{path, name}` 建目录（需会话 + CSRF） |
 | 其余 | `/*` | 已认证则反代上游；否则 401/登录页 |
 
 **栅栏顺序（不可颠倒）**：① Host 校验（不匹配 → **421**）→ ② Origin 校验（不匹配 → 403）
@@ -279,6 +283,44 @@ entry id，不等于 `cordis.patch.yml` 里写的那一行。桌面 profile 里�
 而运行时 id 是 **`include:dsh-auth-gateway`**（已用 `Config.listConfigs` 核对）。用错 id 会让
 每次保存都失败。
 
+### 3.12 `lib/carrier-picker.js`（远程浏览器目录选择）
+
+```js
+export const PICKER_ROUTES = { list: '/_dsh/auth-gateway/fs/list', mkdir: '/_dsh/auth-gateway/fs/mkdir' }
+export const CARRIER_PICKER_GLOBAL = '__DSH_DIRECTORY_PICKER__'
+export class CarrierPickerError extends Error { code: 'bad-request'|'directory-unreadable'|'directory-exists'|'directory-create-failed', path }
+export function fullyQualified(path, platform?): boolean
+export function listDirectory(path?, options?): Promise<{
+  path, home, crumbs: Array<{name,path}>,
+  entries: Array<{name,path,hidden}>, truncated: boolean
+}>
+export function createDirectory(path, name): Promise<string>
+export function injectCarrierPicker(html): string
+export const CARRIER_PICKER_SCRIPT: string
+```
+
+**为什么存在**：dsh 的目录选择器由 `dsh-host-directory-picker-auto` 在启动时**一次性**判定。
+桌面（win32/darwin）且仅回环绑定、无远程 authority 信任时判定为 `native`；它的 Windows 后端
+在**宿主机器**上 spawn 子进程弹 `IFileOpenDialog`。桌面窗口因为有 preload 的
+`__DSH_DIRECTORY_PICKER__` 而走 Electron 对话框，但经本网关访问的浏览器没有 preload，于是
+native 表面会退回 Host RPC，对话框弹在没人看的宿主屏幕上。
+
+**契约**：
+
+1. `injectCarrierPicker` 只在 `200 + text/html + 未压缩` 的文档里，于 `<head>` 起始处插入
+   `CARRIER_PICKER_SCRIPT`。脚本在 `globalThis.__DSH_DIRECTORY_PICKER__` 已存在时**立即返回**，
+   绝不覆盖桌面壳 preload 提供的真实载体。
+2. 脚本定义 `__DSH_DIRECTORY_PICKER__ = { pick(): Promise<string|null> }`，与 preload 的窄接口
+   形状一致：选中返回绝对路径，取消返回 `null`。内部用无框架模态框，通过上面两个网关路由
+   列目录/建目录，CSRF 取自 `dsh_gw_csrf`（或 `__Host-` 变体）cookie。
+3. `list` 是只读路由但**仍要求会话**；`mkdir` 是写路由，必须校验会话 CSRF。
+4. 路径必须是完全限定路径（POSIX 绝对；Windows 盘符/完整 UNC）。`name` 必须是单个非空路径段，
+   禁止 `/`、`\`、`.`、`..`。列目录上限 1000 条，超出置 `truncated`。
+5. 注入由 `Config.remoteDirectoryPicker`（默认 `true`）控制；关闭时不改写文档，也不提供路由。
+
+**安全边界**：这两个路由的权限等于反代页面本身——网关把宿主 core cookie 交给该页面，Workspace UI
+本来就能读写宿主文件。`mkdir` 额外要求 CSRF；栅栏与认证顺序不变。
+
 ### 3.11 `index.js`
 
 ```js
@@ -310,5 +352,6 @@ export async function apply(ctx, config): Promise<void>
 - `node scripts/validate.mjs` 通过（需先把 `auth-gateway` 加入 `BUNDLES`）。
 - `lib/` 下各纯函数模块有单元测试（`node --test test/*.test.js`），至少覆盖：
   policy 栅栏、totp 正负例、credentials 哈希/校验与迁移、sessions 过期/撤销/authEpoch 失效、
-  safe-fs 在 Windows 下不抛错。
-- 端到端：本机起 `--profile web` 后端 + 网关，实测登录 → 会话 → 反代 → WS 101 → 改密码 → 栅栏 421/403。
+  safe-fs 在 Windows 下不抛错、carrier-picker 的路径校验/列目录/建目录/文档注入。
+- 端到端：本机起 `--profile web` 后端 + 网关，实测登录 → 会话 → 反代 → WS 101 → 改密码 → 栅栏 421/403
+  → 页面内目录选择器的 list/mkdir 路由与匿名拒绝。

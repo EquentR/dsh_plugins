@@ -49,7 +49,14 @@ import {
 } from './credentials.js'
 import { SessionStore } from './sessions.js'
 import { renderLoginPage, selectLoginLocale, loginErrorMessage } from './login-page.js'
-import { isEncoded, isHtmlDocument, planHtmlRewrite, wantsDocument } from './host-settings.js'
+import { isEncoded, isHtmlDocument, injectOwnsHost, wantsDocument } from './host-settings.js'
+import {
+  PICKER_ROUTES,
+  CarrierPickerError,
+  createDirectory as createPickerDirectory,
+  injectCarrierPicker,
+  listDirectory as listPickerDirectory,
+} from './carrier-picker.js'
 import {
   attachCoreCookie,
   createCoreSessionBridge,
@@ -700,6 +707,55 @@ export function createGateway(ctx, config, deps = {}) {
     return out
   }
 
+  /**
+   * Answer one directory listing for the page-internal picker.
+   *
+   * Read-only, but still authenticated: the listing exposes the Host filesystem
+   * to anyone who could already reach the proxied Workspace UI, which this
+   * gateway hands the Host's own core cookie.
+   */
+  async function handlePickerList(req, res) {
+    let requested
+    try {
+      requested = new URL(req.url ?? '/', 'http://gateway.invalid').searchParams.get('path') ?? undefined
+    } catch {
+      requested = undefined
+    }
+    if (requested === '') requested = undefined
+    try {
+      const listing = await listPickerDirectory(requested)
+      sendJson(res, 200, { ok: true, listing })
+    } catch (error) {
+      sendJson(res, pickerStatus(error), { ok: false, error: pickerFailure(error) })
+    }
+  }
+
+  /**
+   * Create one child directory for the page-internal picker.
+   *
+   * A write route, so it requires the session's CSRF value exactly like the
+   * password and TOTP routes.
+   */
+  async function handlePickerMkdir(req, res, auth) {
+    let body
+    try {
+      body = JSON.parse(await readBody(req))
+    } catch {
+      sendJson(res, 400, { ok: false, error: { code: 'bad-request', message: 'invalid JSON body' } })
+      return
+    }
+    if (!csrfOk(req, auth, body)) {
+      sendJson(res, 403, { ok: false, error: { code: 'csrf', message: 'missing or stale CSRF token' } })
+      return
+    }
+    try {
+      const created = await createPickerDirectory(body?.path, body?.name)
+      sendJson(res, 200, { ok: true, path: created })
+    } catch (error) {
+      sendJson(res, pickerStatus(error), { ok: false, error: pickerFailure(error) })
+    }
+  }
+
   async function proxyHttp(req, res, auth) {
     let core
     try {
@@ -724,12 +780,15 @@ export function createGateway(ctx, config, deps = {}) {
     if (headers.origin !== undefined) headers.origin = coreTarget.origin
     headers['x-forwarded-for'] = clientAddress(req, trustedProxies)
 
-    // The document is spliced below, and a compressed body cannot be spliced
-    // without inflating it first. Ask the upstream for an uncompressed document
-    // on navigations only: a real browser always sends Accept-Encoding, so
-    // leaving that header in place meant the injection silently never applied to
-    // any actual browser while `curl` appeared to work.
-    if (config.allowRemoteSettings === true && wantsDocument(req)) {
+    // The document may be spliced below, and a compressed body cannot be
+    // spliced without inflating it first. Ask the upstream for an uncompressed
+    // document on navigations only: a real browser always sends Accept-Encoding,
+    // so leaving that header in place meant the injections silently never
+    // applied to any actual browser while `curl` appeared to work.
+    const injectHostSettings = config.allowRemoteSettings === true
+    const injectPicker = config.remoteDirectoryPicker === true
+    const rewriteDocuments = injectHostSettings || injectPicker
+    if (rewriteDocuments && wantsDocument(req)) {
       headers['accept-encoding'] = 'identity'
     }
 
@@ -743,11 +802,15 @@ export function createGateway(ctx, config, deps = {}) {
       if (upstreamRes.statusCode === 401) coreSession.invalidate()
       const responseHeaders = stripCoreSetCookies({ ...upstreamRes.headers })
 
-      // Remote host-settings access: rewrite the HTML document so the client
-      // treats this authenticated page as the Host's own carrier, matching the
-      // desktop shell. Only the document is touched; assets, JSON and plugin
-      // bundles stream through untouched.
-      const rewrite = config.allowRemoteSettings === true
+      // Two independent carrier facts live in the same document splice:
+      //   * remote host-settings access rewrites `__DSH_TRANSPORT__.ownsHost`
+      //     so the authenticated page behaves like the Host's own carrier;
+      //   * the page-internal directory picker defines `__DSH_DIRECTORY_PICKER__`
+      //     so a remote browser picks a folder inside the page instead of
+      //     opening the Host's OS dialog on a screen nobody is watching.
+      // Only the document is touched; assets, JSON and plugin bundles stream
+      // through untouched.
+      const rewrite = rewriteDocuments
         && upstreamRes.statusCode === 200
         && isHtmlDocument(responseHeaders)
         && !isEncoded(responseHeaders)
@@ -761,20 +824,15 @@ export function createGateway(ctx, config, deps = {}) {
       const chunks = []
       upstreamRes.on('data', (chunk) => chunks.push(chunk))
       upstreamRes.on('end', () => {
-        let body
-        try {
-          body = Buffer.concat(chunks).toString('utf8')
-        } catch {
-          body = undefined
-        }
-        const plan = planHtmlRewrite({
-          statusCode: upstreamRes.statusCode,
-          headers: responseHeaders,
-          body,
-          enabled: true,
-        })
-        const finalBody = plan.rewrite ? Buffer.from(plan.body, 'utf8') : Buffer.concat(chunks)
+        const raw = Buffer.concat(chunks).toString('utf8')
+        let body = raw
+        if (injectHostSettings) body = injectOwnsHost(body)
+        if (injectPicker) body = injectCarrierPicker(body)
+        const finalBody = body === raw ? Buffer.concat(chunks) : Buffer.from(body, 'utf8')
+        // The upstream may have answered with a chunked body; the splice sends a
+        // materialized one, so both framing headers must be recomputed.
         delete responseHeaders['content-length']
+        delete responseHeaders['transfer-encoding']
         responseHeaders['content-length'] = String(finalBody.byteLength)
         res.writeHead(upstreamRes.statusCode ?? 502, responseHeaders)
         res.end(finalBody)
@@ -915,6 +973,11 @@ export function createGateway(ctx, config, deps = {}) {
       unauthorized(req, res)
       return
     }
+    // Gateway-owned helper routes for the page-internal directory picker. They
+    // run after the session check because they answer with Host filesystem data;
+    // creating a directory additionally needs the session's CSRF value.
+    if (path === PICKER_ROUTES.list && req.method === 'GET') return handlePickerList(req, res)
+    if (path === PICKER_ROUTES.mkdir && req.method === 'POST') return handlePickerMkdir(req, res, auth)
     return proxyHttp(req, res, auth)
   }
 
@@ -1053,6 +1116,26 @@ export function createGateway(ctx, config, deps = {}) {
       handleUpgrade,
     },
   }
+}
+
+/**
+ * HTTP status for one page-picker failure.
+ *
+ * A bad request or an unreadable directory is the caller's problem; a name
+ * collision is a conflict; anything else is this process failing.
+ */
+function pickerStatus(error) {
+  if (error instanceof CarrierPickerError) {
+    if (error.code === 'bad-request' || error.code === 'directory-unreadable') return 400
+    if (error.code === 'directory-exists') return 409
+  }
+  return 500
+}
+
+/** JSON error projection for one page-picker failure. */
+function pickerFailure(error) {
+  const code = error instanceof CarrierPickerError ? error.code : 'directory-unavailable'
+  return { code, message: error instanceof Error ? error.message : String(error) }
 }
 
 /** Re-exported so index.js and tests share one definition of the fence. */

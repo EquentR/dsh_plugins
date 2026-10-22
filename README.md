@@ -14,7 +14,7 @@
 | [`delete-session`](./delete-session) | 可用 | 持久包 | 带确认的会话永久删除，级联删除子会话记录 |
 | [`mentor`](./mentor) | 可用（默认关闭） | 持久包 | 无工具的「纯对话」导师咨询，会话级标签页 + 全局设置 |
 | [`network-proxy`](./network-proxy) | 可用 | 持久包 | Host 出站请求的 HTTP/SOCKS5 代理设置页，HTTP 模式支持鉴权 |
-| [`auth-gateway`](./auth-gateway) | 可用（默认关闭） | 持久包 | 带账号鉴权的反向代理端口：登录页、会话认证、改密码、TOTP、按设备撤销；兼容 dsh 0.2.0/0.2.1 与 Windows/Linux |
+| [`auth-gateway`](./auth-gateway) | 可用（默认关闭） | 持久包 | 带账号鉴权的反向代理端口：登录页、会话认证、改密码、TOTP、按设备撤销、远程页面内目录选择器；兼容 dsh 0.2.0/0.2.1 与 Windows/Linux |
 | [`obedient-preset`](./obedient-preset) | 可用 | Agent 预设包 | 内置「标准模式」去掉 `workflow` 工具，作为「听话模式」加入模式选择器 |
 | [`model-capabilities`](./model-capabilities) | **已弃用** | 动态函数体 | 原为第三方模型补推理等级与图片能力设置；新版 DSH 已内置，不再维护 |
 

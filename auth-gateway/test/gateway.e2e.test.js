@@ -13,9 +13,9 @@
 import { after, before, describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer, request as httpRequest } from 'node:http'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 
 const HOME = mkdtempSync(join(tmpdir(), 'dsh-auth-gateway-e2e-'))
@@ -53,7 +53,7 @@ function startFakeCore() {
       }
       if (url.pathname === '/') {
         res.writeHead(200, { 'content-type': 'text/html' })
-        res.end('<html><title>DeepSeek Harness</title><body>core</body></html>')
+        res.end('<html><head><title>DeepSeek Harness</title></head><body>core</body></html>')
         return
       }
       if (url.pathname.startsWith('/api/')) {
@@ -165,6 +165,8 @@ before(async () => {
     realm: 'E2E Realm',
     allowedHosts: [],
     allowedOrigins: [],
+    allowRemoteSettings: true,
+    remoteDirectoryPicker: true,
     sessionMaxAgeSeconds: 3600,
     sessionIdleTimeoutSeconds: 1800,
     upstreamTimeoutMs: 5000,
@@ -334,6 +336,81 @@ describe('login and authenticated proxying', () => {
       req.end()
     })
     assert.equal(status, 401)
+  })
+})
+
+describe('page-internal directory picker', () => {
+  it('injects the carrier picker into the authenticated document', async () => {
+    const response = await call('/', { headers: { accept: 'text/html' } })
+    assert.equal(response.status, 200)
+    const html = await response.text()
+    assert.match(html, /__DSH_DIRECTORY_PICKER__ = \{ pick: pick \}/u)
+    assert.ok(html.includes('/_dsh/auth-gateway/fs/list'), 'listing route must be reachable from the page')
+    assert.ok(html.includes('/_dsh/auth-gateway/fs/mkdir'), 'creation route must be reachable from the page')
+    // Both carrier facts share one document splice; enabling host settings must
+    // not suppress the picker (and vice versa).
+    assert.match(html, /ownsHost = true/u)
+  })
+
+  it('never serves the picker routes to an anonymous caller', async () => {
+    const response = await fetch(`${base}/_dsh/auth-gateway/fs/list`, {
+      headers: { accept: 'application/json' },
+      redirect: 'manual',
+    })
+    assert.equal(response.status, 401)
+  })
+
+  it('lists a directory for the authenticated page', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-gateway-picker-'))
+    try {
+      mkdirSync(join(dir, 'child'))
+      const response = await call(`/_dsh/auth-gateway/fs/list?path=${encodeURIComponent(dir)}`)
+      assert.equal(response.status, 200)
+      const body = await response.json()
+      assert.equal(body.ok, true)
+      assert.equal(body.listing.path, resolve(dir))
+      assert.deepEqual(body.listing.entries.map((entry) => entry.name), ['child'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses a relative path with 400', async () => {
+    const response = await call('/_dsh/auth-gateway/fs/list?path=relative%2Fpath')
+    assert.equal(response.status, 400)
+    const body = await response.json()
+    assert.equal(body.ok, false)
+    assert.equal(body.error.code, 'bad-request')
+  })
+
+  it('requires CSRF to create a folder', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-gateway-picker-'))
+    try {
+      const response = await call('/_dsh/auth-gateway/fs/mkdir', json({ path: dir, name: 'denied' }))
+      assert.equal(response.status, 403)
+      assert.equal(existsSync(join(dir, 'denied')), false)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('creates a folder with the session CSRF value', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-gateway-picker-'))
+    try {
+      const csrf = cookies.get('dsh_gw_csrf')
+      const response = await call('/_dsh/auth-gateway/fs/mkdir', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-dsh-csrf': csrf },
+        body: JSON.stringify({ path: dir, name: 'created' }),
+      })
+      assert.equal(response.status, 200)
+      const body = await response.json()
+      assert.equal(body.ok, true)
+      assert.equal(body.path, join(resolve(dir), 'created'))
+      assert.equal(existsSync(join(dir, 'created')), true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

@@ -37,3 +37,5 @@ git-graph/pnpm-workspace.yaml
 docs/research/_artifacts/
 *.pem
 *.key
+# Local scratch space for agent verification artifacts
+.tmp/

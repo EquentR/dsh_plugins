@@ -721,6 +721,72 @@ test('sessions: a session minted without an epoch does not verify against a late
   viaArgument.dispose()
 }))
 
+test('sessions: renew extends expiresAt when past the half-life threshold', withTempDir((dir) => {
+  let clock = 1_700_000_000_000
+  const store = sessionStore(dir, { maxAgeSeconds: 100, idleTimeoutSeconds: 0, now: () => clock })
+  const created = store.create('ua', '127.0.0.1')
+  assert.equal(store.csrf(created.id), created.csrf)
+  assert.equal(store.csrf('unknown'), undefined)
+
+  // Before half-life (e.g. 40s elapsed, 60s remaining > 50s): not due
+  clock += 40_000
+  const early = store.renew(created.id, 0)
+  assert.equal(early?.renewed, false)
+  assert.equal(early?.expiresAt, 1_700_000_100_000)
+
+  // After half-life (55s elapsed, 45s remaining <= 50s): due
+  clock += 15_000
+  const renewed = store.renew(created.id, 0)
+  assert.equal(renewed?.renewed, true)
+  assert.equal(renewed?.expiresAt, clock + 100_000)
+  assert.equal(renewed?.csrf, created.csrf)
+
+  // Verify HMAC and session validity after renewal
+  assert.equal(store.verify(created.id, 0), true)
+
+  // Test reload from disk keeps the renewed expiration
+  const reloaded = sessionStore(dir, { maxAgeSeconds: 100, idleTimeoutSeconds: 0, now: () => clock })
+  assert.equal(reloaded.verify(created.id, 0), true)
+  const list = reloaded.list()
+  assert.equal(list.length, 1)
+  assert.equal(list[0].expiresAt, renewed.expiresAt)
+
+  reloaded.dispose()
+  store.dispose()
+}))
+
+test('sessions: renew respects absoluteMaxAgeSeconds hard cap', withTempDir((dir) => {
+  let clock = 1_700_000_000_000
+  // maxAge 100s, hard cap 150s from creation
+  const store = sessionStore(dir, { maxAgeSeconds: 100, idleTimeoutSeconds: 0, absoluteMaxAgeSeconds: 150, now: () => clock })
+  const created = store.create('ua', '127.0.0.1')
+
+  // Advance 60s -> remaining 40s <= 50s. Normal renewal would be now + 100s = 160s, but cap is 150s
+  clock += 60_000
+  const first = store.renew(created.id, 0)
+  assert.equal(first?.renewed, true)
+  assert.equal(first?.expiresAt, 1_700_000_150_000)
+
+  // Advance to 110s -> remaining 40s <= 50s, but hardCap is 150s which is <= current expiresAt (150s)
+  clock += 50_000
+  const capped = store.renew(created.id, 0)
+  assert.equal(capped?.renewed, false)
+
+  // Past 150s -> expired
+  clock += 41_000
+  assert.equal(store.verify(created.id, 0), false)
+  assert.equal(store.renew(created.id, 0), null)
+  store.dispose()
+}))
+
+test('sessions: renew rejects tampered, unknown or wrong epoch sessions', withTempDir((dir) => {
+  const store = sessionStore(dir, { maxAgeSeconds: 100, authEpoch: 1 })
+  const created = store.create('ua', '127.0.0.1', 1)
+  assert.equal(store.renew('nonexistent', 1), null)
+  assert.equal(store.renew(created.id, 2), null, 'epoch mismatch must return null')
+  store.dispose()
+}))
+
 // ---------------------------------------------------------------------------
 // cross-process restart — the exact shape of the 0.7.6 Windows failure
 // ---------------------------------------------------------------------------

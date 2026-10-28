@@ -24,5 +24,7 @@
         allowedOrigins: []
         sessionMaxAgeSeconds: 86400
         sessionIdleTimeoutSeconds: 43200
+        sessionRolling: true
+        sessionAbsoluteMaxAgeSeconds: 2592000
         upstreamTimeoutMs: 30000
         requestTimeoutMs: 120000

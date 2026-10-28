@@ -111,6 +111,10 @@ export const Config = z.object({
   sessionMaxAgeSeconds: z.natural().min(300).max(30 * 24 * 3600).default(24 * 3600).volatile(),
   /** Idle timeout; a session unused for this long stops validating. */
   sessionIdleTimeoutSeconds: z.natural().min(60).max(30 * 24 * 3600).default(12 * 3600).volatile(),
+  /** Keep active browser sessions alive by renewing the session before it expires. */
+  sessionRolling: z.boolean().default(true).volatile(),
+  /** Absolute hard limit for rolling sessions (0 = unlimited). */
+  sessionAbsoluteMaxAgeSeconds: z.natural().max(30 * 24 * 3600).default(30 * 24 * 3600).volatile(),
   /** Upstream connect/handshake timeout. */
   upstreamTimeoutMs: z.natural().min(1000).max(600_000).default(30_000).volatile(),
   /** Request timeout applied to gateway-owned listeners. */

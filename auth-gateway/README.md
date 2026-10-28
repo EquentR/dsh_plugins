@@ -117,8 +117,10 @@ node scripts/validate.mjs      # 先校验
 | `allowedHosts` | `[]` | 额外接受的 Host authority（裸 `host` 或 `host:port`）。 |
 | `allowedOrigins` | `[]` | 额外接受的浏览器 Origin。 |
 | `remoteDirectoryPicker` | `true` | 给经网关访问的浏览器注入页面内目录选择器（见下文）。 |
-| `sessionMaxAgeSeconds` | `86400` | 会话绝对有效期。 |
-| `sessionIdleTimeoutSeconds` | `43200` | 空闲超时。 |
+| `sessionMaxAgeSeconds` | `86400` | 会话有效期（秒）。启用自动续期时为单次滑动周期。 |
+| `sessionIdleTimeoutSeconds` | `43200` | 空闲超时（秒）。无操作超过此时间即失效。 |
+| `sessionRolling` | `true` | 在线活跃会话自动续期与轮转。到期前自动刷新 Cookie，避免工作中断。 |
+| `sessionAbsoluteMaxAgeSeconds` | `2592000` | 持续自动续期下的绝对有效期上限（秒，`0` 表示不设绝对硬上限）。 |
 | `upstreamTimeoutMs` | `30000` | 上游连接与握手超时。 |
 | `requestTimeoutMs` | `120000` | 网关监听器请求超时。 |
 
@@ -195,6 +197,7 @@ dsh 的目录选择器由 `dsh-host-directory-picker-auto` 在**启动时一次�
 
 - 口令只存 **scrypt + 16 字节随机盐**，比对用常量时间比较。
 - 会话 cookie `HttpOnly` + `SameSite=Strict`（走 TLS 时额外加 `Secure`）；写操作另需 CSRF。
+- **在线活跃自动续期与轮转**：启用 `sessionRolling` 时，只要浏览器有交互或反代访问，网关会在剩余有效时间低于一半时自动顺延 `expiresAt`，并通过响应头下发包含最新 `Max-Age` 的 `Set-Cookie`，避免工作期间被强制踢出；无人操作达到 `sessionIdleTimeoutSeconds` 仍然会自动过期断开。
 - `authEpoch`：改密码会递增，**所有既有会话立即失效**（包括其他设备）。
 - 登录限流：滑动窗口内超过阈值返 429。
 - 上游强制 **loopback**，核心进程令牌不会发到网络目的地。
@@ -213,10 +216,10 @@ dsh 的目录选择器由 `dsh-host-directory-picker-auto` 在**启动时一次�
 ## 开发
 
 ```powershell
-node --test auth-gateway/test/*.test.js    # 单元 + 端到端，共 96 项
+node --test auth-gateway/test/*.test.js    # 单元 + 端到端
 node scripts/validate.mjs                  # 仓库校验
 ```
 
 `test/gateway.e2e.test.js` 会起一个假的 dsh 核心，然后跑真实网关，覆盖：栅栏 421/403、登录页、
-登录、反代、cookie 隔离、WebSocket 101、TOTP 登记与登录、改密码撤销、限流。
+登录、反代、cookie 隔离、在线自动续期轮转、WebSocket 101、TOTP 登记与登录、改密码撤销、限流。
 模块间接口约定见 [CONTRACT.md](./CONTRACT.md)。

@@ -446,21 +446,33 @@ export function createGateway(ctx, config, deps = {}) {
     return entry.count <= LOGIN_MAX_ATTEMPTS
   }
 
+  function sessionCookieHeaders(req, id, csrf) {
+    const policy = cookiePolicy(req)
+    const signature = signValue(secret, id)
+    const maxAge = config.sessionMaxAgeSeconds
+    return [
+      `${policy.session}=${id}.${signature}; Max-Age=${String(maxAge)}; Path=/; HttpOnly; SameSite=Strict${policy.secure ? '; Secure' : ''}`,
+      `${policy.csrf}=${csrf}; Max-Age=${String(maxAge)}; Path=/; SameSite=Strict${policy.secure ? '; Secure' : ''}`,
+    ]
+  }
+
   function issueSession(req, res) {
     const epoch = credentials().authEpoch
-    const policy = cookiePolicy(req)
     const record = sessions.create(
       String(req.headers['user-agent'] ?? ''),
       clientAddress(req, trustedProxies),
       epoch,
     )
-    const signature = signValue(secret, record.id)
-    const maxAge = config.sessionMaxAgeSeconds
-    const cookies = [
-      `${policy.session}=${record.id}.${signature}; Max-Age=${String(maxAge)}; Path=/; HttpOnly; SameSite=Strict${policy.secure ? '; Secure' : ''}`,
-      `${policy.csrf}=${record.csrf}; Max-Age=${String(maxAge)}; Path=/; SameSite=Strict${policy.secure ? '; Secure' : ''}`,
-    ]
+    const cookies = sessionCookieHeaders(req, record.id, record.csrf)
     return { record, cookies }
+  }
+
+  function maybeRenew(req, auth) {
+    if (config.sessionRolling === false) return undefined
+    const current = credentials()
+    const outcome = sessions.renew(auth.id, current.authEpoch)
+    if (!outcome || !outcome.renewed) return undefined
+    return sessionCookieHeaders(req, auth.id, outcome.csrf || auth.csrf || '')
   }
 
   /** Resolve the browser session, or undefined when unauthenticated. */
@@ -672,6 +684,7 @@ export function createGateway(ctx, config, deps = {}) {
   function handleStatus(req, res) {
     const auth = authenticate(req)
     const current = credentials()
+    const renewal = auth !== undefined ? maybeRenew(req, auth) : undefined
     sendJson(res, 200, {
       ok: true,
       authenticated: auth !== undefined,
@@ -683,18 +696,19 @@ export function createGateway(ctx, config, deps = {}) {
       // The CSRF value is only released to an already-authenticated caller: it is
       // the second half of the double-submit check on write routes.
       csrf: auth?.csrf,
-    })
+    }, renewal ? { 'set-cookie': renewal } : {})
   }
 
   function handleState(req, res) {
     const auth = authenticate(req)
+    const renewal = auth !== undefined ? maybeRenew(req, auth) : undefined
     sendJson(res, 200, {
       ok: true,
       authenticated: auth !== undefined,
       username: credentials().username,
       twoFactorEnabled: credentials().twoFactorEnabled,
       listening: servers.map((server) => server.address()).filter(Boolean),
-    })
+    }, renewal ? { 'set-cookie': renewal } : {})
   }
 
   /* -------------------------- proxying --------------------------- */
@@ -801,6 +815,15 @@ export function createGateway(ctx, config, deps = {}) {
     }, (upstreamRes) => {
       if (upstreamRes.statusCode === 401) coreSession.invalidate()
       const responseHeaders = stripCoreSetCookies({ ...upstreamRes.headers })
+      if (auth?.renewCookies?.length) {
+        const existing = responseHeaders['set-cookie']
+        if (existing === undefined) {
+          responseHeaders['set-cookie'] = auth.renewCookies
+        } else {
+          const list = Array.isArray(existing) ? existing : [existing]
+          responseHeaders['set-cookie'] = [...list, ...auth.renewCookies]
+        }
+      }
 
       // Two independent carrier facts live in the same document splice:
       //   * remote host-settings access rewrites `__DSH_TRANSPORT__.ownsHost`
@@ -921,6 +944,11 @@ export function createGateway(ctx, config, deps = {}) {
         if (Array.isArray(value)) for (const item of value) lines.push(`${key}: ${item}`)
         else lines.push(`${key}: ${value}`)
       }
+      if (auth?.renewCookies?.length) {
+        for (const cookie of auth.renewCookies) {
+          lines.push(`Set-Cookie: ${cookie}`)
+        }
+      }
       lines.push('', '')
       socket.write(lines.join('\r\n'))
       if (upstreamHead !== undefined && upstreamHead.length > 0) socket.write(upstreamHead)
@@ -973,6 +1001,11 @@ export function createGateway(ctx, config, deps = {}) {
       unauthorized(req, res)
       return
     }
+    const renewal = maybeRenew(req, auth)
+    if (renewal !== undefined) {
+      auth.renewCookies = renewal
+      res.setHeader('set-cookie', renewal)
+    }
     // Gateway-owned helper routes for the page-internal directory picker. They
     // run after the session check because they answer with Host filesystem data;
     // creating a directory additionally needs the session's CSRF value.
@@ -999,6 +1032,10 @@ export function createGateway(ctx, config, deps = {}) {
     if (auth === undefined) {
       rejectUpgrade(socket, 401, 'Unauthorized')
       return
+    }
+    const renewal = maybeRenew(req, auth)
+    if (renewal !== undefined) {
+      auth.renewCookies = renewal
     }
     void proxyUpgrade(req, socket, head, auth)
   }
@@ -1053,6 +1090,7 @@ export function createGateway(ctx, config, deps = {}) {
         file: sessionFile,
         maxAgeSeconds: config.sessionMaxAgeSeconds,
         idleTimeoutSeconds: config.sessionIdleTimeoutSeconds,
+        absoluteMaxAgeSeconds: config.sessionAbsoluteMaxAgeSeconds,
       })
       sessions.load()
 

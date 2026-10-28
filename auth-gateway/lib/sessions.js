@@ -76,6 +76,7 @@ export class SessionStore {
   #key
   #maxAgeMs
   #idleTimeoutMs
+  #absoluteMaxAgeMs
   #authEpoch
   #now
   #records = new Map()
@@ -87,16 +88,18 @@ export class SessionStore {
    * @param {string} options.file          absolute path of `sessions.json`
    * @param {number} [options.maxAgeSeconds=86400]
    * @param {number} [options.idleTimeoutSeconds=43200]
+   * @param {number} [options.absoluteMaxAgeSeconds=0]
    * @param {number} [options.authEpoch=0]  epoch stamped on new sessions
    * @param {() => number} [options.now]    clock injection for tests
    */
   constructor(options = {}) {
-    const { file, maxAgeSeconds = 86_400, idleTimeoutSeconds = 43_200, authEpoch = 0, now } = options ?? {}
+    const { file, maxAgeSeconds = 86_400, idleTimeoutSeconds = 43_200, absoluteMaxAgeSeconds = 0, authEpoch = 0, now } = options ?? {}
     if (typeof file !== 'string' || file === '') throw new TypeError('SessionStore requires a file path')
     this.#file = file
     this.#keyFile = `${file}.key`
     this.#maxAgeMs = Math.max(0, Number(maxAgeSeconds) || 0) * 1000
     this.#idleTimeoutMs = Math.max(0, Number(idleTimeoutSeconds) || 0) * 1000
+    this.#absoluteMaxAgeMs = Math.max(0, Number(absoluteMaxAgeSeconds) || 0) * 1000
     this.#authEpoch = isSafeInteger(authEpoch) && authEpoch >= 0 ? authEpoch : 0
     this.#now = typeof now === 'function' ? now : () => Date.now()
     this.#key = this.#loadOrCreateKey()
@@ -197,12 +200,15 @@ export class SessionStore {
     do {
       id = randomBytes(16).toString('base64url')
     } while (this.#records.has(id))
+    const initialExpiresAt = this.#absoluteMaxAgeMs > 0
+      ? Math.min(now + this.#maxAgeMs, now + this.#absoluteMaxAgeMs)
+      : now + this.#maxAgeMs
     const record = {
       id,
       authEpoch: epoch,
       createdAt: now,
       lastSeenAt: now,
-      expiresAt: now + this.#maxAgeMs,
+      expiresAt: initialExpiresAt,
       userAgent: sanitizeText(userAgent),
       address: sanitizeText(remoteAddress),
       hmac: '',
@@ -240,6 +246,56 @@ export class SessionStore {
     if (this.#isExpired(record, now)) return
     record.lastSeenAt = now
     if (now - this.#lastPersistAt >= TOUCH_PERSIST_INTERVAL_MS) this.persist()
+  }
+
+  /** Derived CSRF value for a session id, if the id is known and well-formed. */
+  csrf(id) {
+    if (typeof id !== 'string' || !SESSION_ID_PATTERN.test(id)) return undefined
+    if (!this.#records.has(id)) return undefined
+    return this.#csrfFor(id)
+  }
+
+  /**
+   * Renew an active session's absolute expiry if it has reached the renewal window.
+   *
+   * Renews when less than half of maxAge remains (or at least half has elapsed).
+   * Respects absoluteMaxAgeSeconds if configured.
+   * Updates lastSeenAt, recomputes the HMAC, and immediately persists.
+   *
+   * @returns {{ renewed: boolean, expiresAt: number, csrf: string } | null} null if invalid/expired.
+   */
+  renew(id, authEpoch) {
+    if (this.#disposed) return null
+    if (typeof id !== 'string' || !SESSION_ID_PATTERN.test(id)) return null
+    const record = this.#records.get(id)
+    if (record === undefined) return null
+    const epoch = isSafeInteger(authEpoch) ? authEpoch : this.#authEpoch
+    if (record.authEpoch !== epoch) return null
+    if (!this.#hmacMatches(record)) return null
+    const now = this.#now()
+    if (this.#isExpired(record, now)) return null
+    if (this.#maxAgeMs <= 0) return { renewed: false, expiresAt: record.expiresAt, csrf: this.#csrfFor(id) }
+
+    const remaining = record.expiresAt - now
+    if (remaining > this.#maxAgeMs / 2) {
+      return { renewed: false, expiresAt: record.expiresAt, csrf: this.#csrfFor(id) }
+    }
+
+    let nextExpiresAt = now + this.#maxAgeMs
+    if (this.#absoluteMaxAgeMs > 0) {
+      const hardCap = record.createdAt + this.#absoluteMaxAgeMs
+      nextExpiresAt = Math.min(nextExpiresAt, hardCap)
+    }
+
+    if (nextExpiresAt <= record.expiresAt) {
+      return { renewed: false, expiresAt: record.expiresAt, csrf: this.#csrfFor(id) }
+    }
+
+    record.expiresAt = nextExpiresAt
+    record.lastSeenAt = now
+    record.hmac = this.#hmacFor(record)
+    this.persist()
+    return { renewed: true, expiresAt: record.expiresAt, csrf: this.#csrfFor(id) }
   }
 
   /** Revoke one session; returns whether it existed. */

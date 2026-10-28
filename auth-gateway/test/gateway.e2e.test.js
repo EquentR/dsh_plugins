@@ -522,3 +522,79 @@ describe('password change revokes every session', () => {
     assert.ok(sawLimit, 'expected the login limiter to engage')
   })
 })
+
+describe('rolling session renewal', () => {
+  let rollingGateway
+  let rollingBase
+
+  before(async () => {
+    const ctx = fakeCtx(core.port)
+    rollingGateway = createGateway(ctx, {
+      enabled: true,
+      port: 0,
+      targetHost: '127.0.0.1',
+      targetPort: core.port,
+      addresses: ['127.0.0.1'],
+      username: USERNAME,
+      password: NEW_PASSWORD,
+      realm: 'Rolling Realm',
+      allowedHosts: [],
+      allowedOrigins: [],
+      sessionMaxAgeSeconds: 2,
+      sessionIdleTimeoutSeconds: 60,
+      sessionRolling: true,
+      sessionAbsoluteMaxAgeSeconds: 60,
+      upstreamTimeoutMs: 5000,
+      requestTimeoutMs: 15_000,
+    })
+    const started = await rollingGateway.start()
+    rollingBase = `http://127.0.0.1:${String(started.listening[0].port)}`
+  })
+
+  after(async () => {
+    await rollingGateway?.stop()
+  })
+
+  it('automatically renews the session and reissues cookies before expiry', async () => {
+    const testCookies = jar()
+    const rCall = async (path, options = {}) => {
+      const headers = { ...(options.headers ?? {}) }
+      const header = testCookies.header()
+      if (header !== '') headers.cookie = header
+      const res = await fetch(`${rollingBase}${path}`, { ...options, headers, redirect: 'manual' })
+      testCookies.absorb(res)
+      return res
+    }
+
+    const loginRes = await rCall('/api/auth.login', json({
+      username: USERNAME,
+      password: NEW_PASSWORD,
+      totp: totpCode(enrolledSecret),
+    }))
+    assert.equal(loginRes.status, 200)
+    assert.ok(testCookies.get('dsh_gw_session'))
+
+    // Request immediately: remaining > 1s, should NOT reissue
+    const firstProbe = await rCall('/api/probe')
+    assert.equal(firstProbe.status, 200)
+    const firstSetCookie = firstProbe.headers.getSetCookie?.() ?? []
+    assert.equal(firstSetCookie.some((c) => c.includes('dsh_gw_session')), false)
+
+    // Wait 1.1s so remaining time drops below half (2s / 2 = 1s)
+    await new Promise((r) => setTimeout(r, 1100))
+
+    // Request now: remaining < 1s, should renew and send fresh Set-Cookie
+    const renewProbe = await rCall('/api/probe')
+    assert.equal(renewProbe.status, 200)
+    const renewSetCookie = renewProbe.headers.getSetCookie?.() ?? []
+    assert.equal(renewSetCookie.some((c) => c.includes('dsh_gw_session')), true)
+    assert.equal(renewSetCookie.some((c) => c.includes('dsh_gw_csrf')), true)
+
+    // Wait another 1.2s: total time elapsed is ~2.3s, which is past the original 2.0s lifetime
+    await new Promise((r) => setTimeout(r, 1200))
+
+    // Request after original expiration: session still valid because it was rolled
+    const postExpiryProbe = await rCall('/api/probe')
+    assert.equal(postExpiryProbe.status, 200)
+  })
+})

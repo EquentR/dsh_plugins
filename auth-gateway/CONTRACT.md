@@ -140,13 +140,15 @@ export function effectiveCredentials(config): { username, realm, twoFactorEnable
 ```js
 export const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{22}$/u
 export class SessionStore {
-  constructor(options: { file: string, maxAgeSeconds: number, idleTimeoutSeconds: number, authEpoch?: number })
+  constructor(options: { file: string, maxAgeSeconds: number, idleTimeoutSeconds: number, authEpoch?: number, absoluteMaxAgeSeconds?: number })
   load(): void
   // 第三参 `authEpoch` 是必需的：会话按 epoch 打标，`verify` 才能拒绝改密码前的旧会话。
   // 省略它会让新会话 stamp 0，与 seed 后的 authEpoch=1 不匹配，导致登录后每个请求都被判匿名。
   create(userAgent: string, remoteAddress: string, authEpoch: number): { id: string, csrf: string }
   verify(id: string, authEpoch: number): boolean
   touch(id: string): void
+  renew(id: string, authEpoch?: number): { renewed: boolean, expiresAt: number, csrf: string } | null
+  csrf(id: string): string | undefined
   revoke(id: string): boolean
   revokeAll(): number
   list(): SessionInfo[]
@@ -156,6 +158,7 @@ export class SessionStore {
 ```
 
 会话只存**元数据 + HMAC**，不落 bearer。`authEpoch` 变更即全局失效。
+支持活跃会话自动续期/轮转（`renew`）：当会话有效且剩余有效期小于一半时，顺延其 `expiresAt`（受 `absoluteMaxAgeSeconds` 上限约束，0 为无上限），并重算 HMAC。
 
 ### 3.7 `lib/login-page.js`
 
@@ -277,6 +280,10 @@ export function createSettingsRpc(ctx, deps): { dispose }
 → 同时以刚保存的值 `reconcile()` 立即启停监听器，不等 volatile 事件回流。
 `status` 报告的是**配置意图**（`enabled`）与**运行状态**（`running`）两个独立字段：
 用户打开开关后必须看到「已启用 + 未在监听 + 原因」，而不是开关自己弹回去。
+
+**活跃会话自动续期与轮转**：
+- `sessionRolling`（默认 `true`）：当浏览器处于在线活跃状态，每次访问都会触发会话检测。若剩余有效时间低于会话周期的一半（`maxAge / 2`），则顺延过期时间并向客户端下发携带最新 `Max-Age` 的 `Set-Cookie`（包含会话与 CSRF Cookie），避免正常工作中断。空闲超时（`sessionIdleTimeoutSeconds`）依然有效，确保长时间无操作的废弃会话仍能正常过期。
+- `sessionAbsoluteMaxAgeSeconds`（默认 `2592000` 即 30 天，`0` 表示不设绝对硬上限）：限制单个会话在持续自动续期下的最长生存时间。
 
 **namespace 必须从 configEditor 现场发现**：`settings.update(ns)` 的 `ns` 是**运行时** profile
 entry id，不等于 `cordis.patch.yml` 里写的那一行。桌面 profile 里写的是 `dsh-auth-gateway`，

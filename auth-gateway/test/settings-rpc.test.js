@@ -39,6 +39,8 @@ describe('buildPatch', () => {
       username: 'alice',
       sessionMaxAgeSeconds: 3600,
       sessionIdleTimeoutSeconds: 600,
+      sessionRolling: true,
+      sessionAbsoluteMaxAgeSeconds: 86400,
     }, {})
     assert.equal(patch.enabled, true)
     assert.equal(patch.port, 3081)
@@ -47,6 +49,8 @@ describe('buildPatch', () => {
     assert.deepEqual(patch.allowedHosts, ['dsh.example.com'])
     assert.equal(patch.realm, 'My Realm')
     assert.equal(patch.username, 'alice')
+    assert.equal(patch.sessionRolling, true)
+    assert.equal(patch.sessionAbsoluteMaxAgeSeconds, 86400)
   })
 
   it('never wipes a stored password just because the field is empty', () => {
@@ -105,6 +109,8 @@ describe('describeState', () => {
     assert.equal(state.running, false)
     assert.equal(state.username, 'admin')
     assert.equal(state.hasPassword, true)
+    assert.equal(state.sessionRolling, true)
+    assert.equal(state.sessionAbsoluteMaxAgeSeconds, 2592000)
   })
 
   it('never leaks the password or the TOTP secret', () => {

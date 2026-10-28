@@ -168,6 +168,10 @@ export function buildPatch(input, current) {
   if (Array.isArray(input.allowedOrigins)) patch.allowedOrigins = normalizeStringList(input.allowedOrigins, [])
   if (Number.isSafeInteger(input.sessionMaxAgeSeconds)) patch.sessionMaxAgeSeconds = input.sessionMaxAgeSeconds
   if (Number.isSafeInteger(input.sessionIdleTimeoutSeconds)) patch.sessionIdleTimeoutSeconds = input.sessionIdleTimeoutSeconds
+  if (typeof input.sessionRolling === 'boolean') patch.sessionRolling = input.sessionRolling
+  if (Number.isSafeInteger(input.sessionAbsoluteMaxAgeSeconds) && input.sessionAbsoluteMaxAgeSeconds >= 0 && input.sessionAbsoluteMaxAgeSeconds <= 2592000) {
+    patch.sessionAbsoluteMaxAgeSeconds = input.sessionAbsoluteMaxAgeSeconds
+  }
 
   if (input.clearPassword === true) {
     patch.password = ''
@@ -204,6 +208,8 @@ export function describeState(values, status, account, overrides) {
     allowedOrigins: Array.isArray(view.allowedOrigins) ? view.allowedOrigins : [],
     sessionMaxAgeSeconds: view.sessionMaxAgeSeconds,
     sessionIdleTimeoutSeconds: view.sessionIdleTimeoutSeconds,
+    sessionRolling: view.sessionRolling !== false,
+    sessionAbsoluteMaxAgeSeconds: view.sessionAbsoluteMaxAgeSeconds ?? 2592000,
     hasPassword: account.hasPassword,
     twoFactorEnabled: account.twoFactorEnabled,
     authEpoch: account.authEpoch,

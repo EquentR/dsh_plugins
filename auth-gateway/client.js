@@ -31,6 +31,10 @@ window.__ModuleLoader__.load({
       allowedHosts: '允许的 Host', allowedHostsHint: '每行一个 host 或 host:port。经反向代理访问时必须填公网域名。',
       realm: '登录页标题', sessionMaxAge: '会话有效期（秒）', sessionIdle: '空闲超时（秒）',
       sessionMaxAgeSeconds: '会话有效期', sessionIdleTimeoutSeconds: '空闲超时',
+      sessionRolling: '活跃会话自动续期与轮转',
+      sessionRollingHint: '开启后，浏览器在线访问时会在到期前自动续期并刷新 Cookie，避免工作中因超时中断；空闲超时依然生效。',
+      sessionAbsoluteMaxAge: '绝对有效期上限（秒，0 为不限）',
+      sessionAbsoluteMaxAgeSeconds: '绝对有效期上限',
       integerRange: '请输入此范围内的整数：', invalidUpstream: '上游地址必须是 127.0.0.1 或 ::1。', realmRequired: '请填写登录页标题。',
       save: '保存', saving: '保存中…', reload: '重新读取设置',
       passwordTitle: '账号密码', passwordState: '密码状态', hasPassword: '已设置', noPassword: '未设置', username: '用户名',
@@ -67,6 +71,10 @@ window.__ModuleLoader__.load({
       allowedHosts: 'Allowed Hosts', allowedHostsHint: 'One host or host:port per line. Required for reverse-proxied access.',
       realm: 'Login page title', sessionMaxAge: 'Session lifetime (s)', sessionIdle: 'Idle timeout (s)',
       sessionMaxAgeSeconds: 'Session lifetime', sessionIdleTimeoutSeconds: 'Idle timeout',
+      sessionRolling: 'Auto-renew active sessions',
+      sessionRollingHint: 'When enabled, active browser sessions are renewed before expiry, preventing work interruptions; idle timeout still applies.',
+      sessionAbsoluteMaxAge: 'Absolute session limit (s, 0 for none)',
+      sessionAbsoluteMaxAgeSeconds: 'Absolute session limit',
       integerRange: 'Enter a whole number in this range:', invalidUpstream: 'The upstream address must be 127.0.0.1 or ::1.', realmRequired: 'Enter a login page title.',
       save: 'Save', saving: 'Saving…', reload: 'Reload settings',
       passwordTitle: 'Account password', passwordState: 'Password', hasPassword: 'set', noPassword: 'not set', username: 'Username',
@@ -192,6 +200,8 @@ window.__ModuleLoader__.load({
             addresses: arrayToLines(info.addresses), allowedHosts: arrayToLines(info.allowedHosts),
             realm: info.realm ?? '', sessionMaxAgeSeconds: info.sessionMaxAgeSeconds ?? 86400,
             sessionIdleTimeoutSeconds: info.sessionIdleTimeoutSeconds ?? 43200,
+            sessionRolling: info.sessionRolling !== false,
+            sessionAbsoluteMaxAgeSeconds: info.sessionAbsoluteMaxAgeSeconds ?? 2592000,
           }
         }
         function adopt(info, replaceDraft = false) {
@@ -254,7 +264,13 @@ window.__ModuleLoader__.load({
           return String(value).trim() !== '' && Number.isSafeInteger(Number(value)) && Number(value) >= min && Number(value) <= max
         }
         function validateListener() {
-          const limits = [['port', 1, 65535], ['targetPort', 0, 65535], ['sessionMaxAgeSeconds', 300, 2592000], ['sessionIdleTimeoutSeconds', 60, 2592000]]
+          const limits = [
+            ['port', 1, 65535],
+            ['targetPort', 0, 65535],
+            ['sessionMaxAgeSeconds', 300, 2592000],
+            ['sessionIdleTimeoutSeconds', 60, 2592000],
+            ['sessionAbsoluteMaxAgeSeconds', 0, 2592000],
+          ]
           for (const [key, min, max] of limits) {
             if (!numberValid(draft[key], min, max)) return `${t(key)}: ${t('integerRange')} ${min}-${max}.`
           }
@@ -271,6 +287,7 @@ window.__ModuleLoader__.load({
             port: Number(draft.port), targetHost: draft.targetHost.trim(), targetPort: Number(draft.targetPort),
             addresses: linesToArray(draft.addresses), allowedHosts: linesToArray(draft.allowedHosts), realm: draft.realm.trim(),
             sessionMaxAgeSeconds: Number(draft.sessionMaxAgeSeconds), sessionIdleTimeoutSeconds: Number(draft.sessionIdleTimeoutSeconds),
+            sessionRolling: draft.sessionRolling === true, sessionAbsoluteMaxAgeSeconds: Number(draft.sessionAbsoluteMaxAgeSeconds),
           }))
           if (value) { adopt(value, true); listenerNotice(value, true) }
         })
@@ -363,7 +380,12 @@ window.__ModuleLoader__.load({
             h('div', { className: 'ag-grid' },
               listenerField('port', 'port', { type: 'number', min: 1, max: 65535, step: 1 }),
               listenerField('sessionMaxAgeSeconds', 'sessionMaxAge', { type: 'number', min: 300, max: 2592000, step: 1 }),
-              listenerField('sessionIdleTimeoutSeconds', 'sessionIdle', { type: 'number', min: 60, max: 2592000, step: 1 })),
+              listenerField('sessionIdleTimeoutSeconds', 'sessionIdle', { type: 'number', min: 60, max: 2592000, step: 1 }),
+              listenerField('sessionAbsoluteMaxAgeSeconds', 'sessionAbsoluteMaxAge', { type: 'number', min: 0, max: 2592000, step: 1 })),
+            h('label', { className: 'ag-switch' },
+              h('input', { type: 'checkbox', role: 'switch', checked: draft.sessionRolling === true, 'aria-checked': draft.sessionRolling === true, disabled, onChange: (event) => update('sessionRolling', event.target.checked), 'aria-label': t('sessionRolling') }),
+              h('span', null, t('sessionRolling'))),
+            h('small', null, t('sessionRollingHint')),
             listenerField('addresses', 'addresses', { multiline: true, placeholder: '192.168.1.10' }, 'addressesHint'),
             listenerField('allowedHosts', 'allowedHosts', { multiline: true, placeholder: 'dsh.example.com' }, 'allowedHostsHint'),
             h('div', { className: 'ag-grid' }, listenerField('targetHost', 'upstream'), listenerField('targetPort', 'targetPort', { type: 'number', min: 0, max: 65535, step: 1 })),

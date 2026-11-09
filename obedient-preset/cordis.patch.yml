@@ -92,14 +92,12 @@
             config:
               - id: tool-subagent-control
                 name: '@deepseek-ai/dsh-tool-subagent-control'
-              - id: tool-subagent-list-agents
-                name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
               - id: tool-subagent
                 name: '@deepseek-ai/dsh-tool-subagent'
                 config:
                   provider: spawn
                   toolName: subagent
-                  modelSelectionSettings: true
+                  modelSelection: true
                   # Children are pinned to this same preset, so they never regain
                   # the workflow tool. Without `allowedAgentPresets` the model
                   # cannot ask for a preset that has it (for example `standard`).
